@@ -1,0 +1,16 @@
+# Local services for development. Usage:
+#   docker compose up -d
+#   psql postgres://postgres:postgres@localhost:5432/postgres -f scripts/db-bootstrap.sql
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+  mailpit:
+    # Catches outgoing mail when EMAIL_TRANSPORT=smtp and SMTP_URL=smtp://localhost:1025. UI: http://localhost:8025
+    image: axllent/mailpit:latest
+    ports: ["1025:1025", "8025:8025"]
+volumes:
+  pgdata:

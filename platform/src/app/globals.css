@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Design tokens. Light only for now; dark mode for the merchant dashboard is P2. */
+@theme {
+  --font-sans: "IBM Plex Sans Arabic", system-ui, -apple-system, "Segoe UI", Tahoma, sans-serif;
+  --color-brand: #0f766e;
+  --color-brand-strong: #115e59;
+  --color-brand-soft: #ccfbf1;
+  --color-ink: #111827;
+  --color-ink-soft: #4b5563;
+  --color-ink-faint: #9ca3af;
+  --color-line: #e5e7eb;
+  --color-muted: #f3f4f6;
+  --color-surface: #ffffff;
+  --color-canvas: #f7f8fa;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+/* Latin-only values (emails, URLs, slugs) read left-to-right inside RTL text. */
+.ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

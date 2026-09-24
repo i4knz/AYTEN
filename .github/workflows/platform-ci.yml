@@ -1,0 +1,53 @@
+name: platform-ci
+
+on:
+  push:
+    paths: ["platform/**", ".github/workflows/platform-ci.yml"]
+  pull_request:
+    paths: ["platform/**", ".github/workflows/platform-ci.yml"]
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: platform/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: platform/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - name: Create database roles
+        run: psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f scripts/db-bootstrap.sql
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Unit and integration tests
+        run: pnpm test
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: End-to-end tests (mobile + desktop)
+        run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-results
+          path: platform/test-results
+          retention-days: 7
