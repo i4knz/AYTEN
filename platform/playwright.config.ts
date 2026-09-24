@@ -37,7 +37,10 @@ export default defineConfig({
       EMAIL_TRANSPORT: "log",
       ALLOW_LOG_EMAIL: "1",
       OUTBOX_DIR: ".data/e2e",
+      STORAGE_DIR: ".data/e2e/uploads",
       TRUST_PROXY: "0",
+      // Every browser in the suite shares 127.0.0.1; per-IP limits are covered by integration tests.
+      RATE_LIMIT_SCALE: "100",
     },
   },
 });

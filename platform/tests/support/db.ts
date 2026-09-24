@@ -1,5 +1,6 @@
 import { Client } from "pg";
 import type { EmailMessage } from "@/server/email";
+import type { StorageProvider } from "@/server/storage";
 
 export const outbox: EmailMessage[] = [];
 
@@ -30,3 +31,18 @@ export function lastTokenFromOutbox(tag: string): string {
   if (!match) throw new Error("No token in email");
   return decodeURIComponent(match[1]);
 }
+
+export const memoryStorage: StorageProvider & { files: Map<string, Buffer> } = {
+  files: new Map(),
+  async put(key, body) {
+    this.files.set(key, body);
+  },
+  async get(key) {
+    const body = this.files.get(key);
+    return body ? { body, contentType: "image/webp" } : null;
+  },
+  async delete(key) {
+    this.files.delete(key);
+  },
+  url: (key) => `http://media.test/${key}`,
+};

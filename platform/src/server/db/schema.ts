@@ -1,7 +1,7 @@
 // Typed mirror of db/migrations. The SQL files are the source of truth for
 // constraints, indexes and RLS policies; keep this file in sync with them.
 import { sql } from "drizzle-orm";
-import { boolean, customType, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, customType, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 const citext = customType<{ data: string }>({ dataType: () => "citext" });
 const bytea = customType<{ data: Buffer }>({ dataType: () => "bytea" });
@@ -108,5 +108,124 @@ export const auditLogs = pgTable("audit_logs", {
   ip: inet("ip"),
   userAgent: text("user_agent"),
   metadata: jsonb("metadata").notNull().default({}),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const INVITABLE_ROLES = ["manager", "orders", "products", "marketing", "support", "viewer"] as const;
+export type InvitableRole = (typeof INVITABLE_ROLES)[number];
+
+export const storeInvitations = pgTable("store_invitations", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  email: citext("email").notNull(),
+  role: text("role", { enum: INVITABLE_ROLES }).notNull(),
+  tokenHash: bytea("token_hash").notNull(),
+  invitedBy: uuid("invited_by"),
+  expiresAt: tz("expires_at").notNull(),
+  acceptedAt: tz("accepted_at"),
+  acceptedBy: uuid("accepted_by"),
+  revokedAt: tz("revoked_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const categories = pgTable("categories", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  parentId: uuid("parent_id"),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description"),
+  position: integer("position").notNull().default(0),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const PRODUCT_STATUSES = ["draft", "active", "archived"] as const;
+export type ProductStatus = (typeof PRODUCT_STATUSES)[number];
+
+export const products = pgTable("products", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  type: text("type", { enum: ["physical", "digital", "service"] }).notNull().default("physical"),
+  name: text("name").notNull(),
+  slug: text("slug").notNull(),
+  description: text("description").notNull().default(""),
+  status: text("status", { enum: PRODUCT_STATUSES }).notNull().default("draft"),
+  requiresShipping: boolean("requires_shipping").notNull().default(true),
+  taxable: boolean("taxable").notNull().default(true),
+  seoTitle: text("seo_title"),
+  seoDescription: text("seo_description"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const productOptions = pgTable("product_options", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+  values: text("values").array().notNull(),
+});
+
+export const productVariants = pgTable("product_variants", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  option1: text("option1"),
+  option2: text("option2"),
+  option3: text("option3"),
+  sku: text("sku"),
+  barcode: text("barcode"),
+  price: bigint("price", { mode: "number" }).notNull(),
+  compareAtPrice: bigint("compare_at_price", { mode: "number" }),
+  cost: bigint("cost", { mode: "number" }),
+  weightGrams: integer("weight_grams"),
+  position: integer("position").notNull().default(0),
+  archivedAt: tz("archived_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const productImages = pgTable("product_images", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  storageKey: text("storage_key").notNull(),
+  width: integer("width").notNull(),
+  height: integer("height").notNull(),
+  alt: text("alt").notNull().default(""),
+  position: integer("position").notNull().default(0),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const productCategories = pgTable("product_categories", {
+  storeId: uuid("store_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  categoryId: uuid("category_id").notNull(),
+});
+
+export const inventoryLevels = pgTable("inventory_levels", {
+  storeId: uuid("store_id").notNull(),
+  variantId: uuid("variant_id").primaryKey(),
+  trackInventory: boolean("track_inventory").notNull().default(true),
+  onHand: integer("on_hand").notNull().default(0),
+  reserved: integer("reserved").notNull().default(0),
+  lowStockThreshold: integer("low_stock_threshold"),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const INVENTORY_REASONS = ["initial", "manual_adjust", "order_committed", "order_released", "return_restock", "import"] as const;
+
+export const inventoryMovements = pgTable("inventory_movements", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  variantId: uuid("variant_id").notNull(),
+  delta: integer("delta").notNull(),
+  onHandAfter: integer("on_hand_after").notNull(),
+  reason: text("reason", { enum: INVENTORY_REASONS }).notNull(),
+  orderId: uuid("order_id"),
+  actorUserId: uuid("actor_user_id"),
+  note: text("note"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
 });

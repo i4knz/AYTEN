@@ -32,7 +32,7 @@ export async function registerAction(_prev: FormState, form: FormData): Promise<
       await getRequestMeta(),
     );
     await setSessionCookie(sessionToken);
-    destination = "/onboarding";
+    destination = safeNextPath(form.get("next"), "/onboarding");
   } catch (err) {
     return toFormState(err, formValues(form));
   }

@@ -7,7 +7,7 @@ import { Alert, Card, Field, Input } from "@/components/ui";
 import type { FormState } from "@/server/web";
 import { registerAction } from "../actions";
 
-export function RegisterForm() {
+export function RegisterForm({ next }: { next: string }) {
   const [state, action] = useActionState<FormState, FormData>(registerAction, {});
   const e = state.fieldErrors ?? {};
   const v = state.values ?? {};
@@ -17,6 +17,7 @@ export function RegisterForm() {
       <p className="mb-6 text-sm leading-7 text-ink-soft">خطوة واحدة، ثم ننشئ متجرك معاً.</p>
       <form action={action} className="flex flex-col gap-4" noValidate>
         {state.message && !state.ok && <Alert>{state.message}</Alert>}
+        <input type="hidden" name="next" value={next} />
         <Field label="الاسم" name="name" error={e.name}>
           <Input id="name" name="name" autoComplete="name" required defaultValue={v.name} aria-invalid={!!e.name} />
         </Field>
@@ -65,7 +66,7 @@ export function RegisterForm() {
       </form>
       <p className="mt-6 text-center text-sm text-ink-soft">
         لديك حساب؟{" "}
-        <Link href="/login" className="font-semibold text-brand">
+        <Link href={next === "/onboarding" ? "/login" : `/login?next=${encodeURIComponent(next)}`} className="font-semibold text-brand">
           تسجيل الدخول
         </Link>
       </p>

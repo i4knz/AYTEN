@@ -25,6 +25,12 @@ export function isUniqueViolation(err: unknown, constraint?: string): boolean {
   return e?.code === "23505" && (!constraint || e.constraint === constraint);
 }
 
+/** Postgres check_violation on a given constraint. */
+export function isCheckViolation(err: unknown, constraint?: string): boolean {
+  const e = findPgError(err);
+  return e?.code === "23514" && (!constraint || e.constraint === constraint);
+}
+
 function findPgError(err: unknown): { code?: string; constraint?: string } | undefined {
   let current: unknown = err;
   for (let i = 0; i < 5 && current && typeof current === "object"; i++) {

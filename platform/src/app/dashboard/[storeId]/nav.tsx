@@ -8,9 +8,11 @@ import { usePathname } from "next/navigation";
 const ITEMS: { label: string; path: string; ready: boolean }[] = [
   { label: "الرئيسية", path: "", ready: true },
   { label: "الطلبات", path: "/orders", ready: false },
-  { label: "المنتجات", path: "/products", ready: false },
+  { label: "المنتجات", path: "/products", ready: true },
+  { label: "المخزون", path: "/inventory", ready: true },
   { label: "العملاء", path: "/customers", ready: false },
   { label: "تصميم المتجر", path: "/design", ready: false },
+  { label: "الفريق", path: "/team", ready: true },
   { label: "الإعدادات", path: "/settings", ready: true },
 ];
 

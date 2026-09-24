@@ -12,7 +12,13 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
-  serverExternalPackages: ["@node-rs/argon2"],
+  serverExternalPackages: ["@node-rs/argon2", "sharp"],
+  experimental: {
+    // Product images are uploaded through Server Actions (max 8 MB per image, one request per image batch).
+    serverActions: { bodySizeLimit: "25mb" },
+    // The proxy buffers request bodies; keep its limit in line so uploads are not truncated.
+    proxyClientMaxBodySize: "25mb",
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

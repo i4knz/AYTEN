@@ -2,14 +2,16 @@ import Link from "next/link";
 import { Alert, Card } from "@/components/ui";
 import { getSetupChecklist } from "@/server/stores/service";
 import { storefrontUrl } from "@/server/urls";
+import { roleHas } from "@/server/stores/permissions";
 import { loadStore } from "./access";
+import { PublishCard } from "./publish-card";
 
 export default async function StoreHome({ params, searchParams }: PageProps<"/dashboard/[storeId]">) {
   const { storeId } = await params;
   const { welcome } = await searchParams;
   const { session, access } = await loadStore(storeId);
   const checklist = await getSetupChecklist(access);
-  const available = checklist.filter((i) => i.available);
+  const available = checklist.filter((i) => i.available && i.key !== "publish");
   const upcoming = checklist.filter((i) => !i.available);
   const pending = available.filter((i) => !i.done);
   const doneCount = available.length - pending.length;
@@ -39,6 +41,17 @@ export default async function StoreHome({ params, searchParams }: PageProps<"/da
           </a>
         </p>
       </div>
+
+      <PublishCard
+        storeId={storeId}
+        status={access.store.status}
+        storeUrl={storefrontUrl(access.store.slug)}
+        canPublish={roleHas(access.role, "settings.write")}
+        blockers={[
+          ...(checklist.find((i) => i.key === "verify_email")?.done ? [] : ["أكّد البريد الإلكتروني لمالك المتجر."]),
+          ...(checklist.find((i) => i.key === "product_active")?.done ? [] : ["انشر منتجاً واحداً على الأقل."]),
+        ]}
+      />
 
       <Card>
         <div className="mb-4 flex items-center justify-between gap-4">

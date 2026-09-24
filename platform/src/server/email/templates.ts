@@ -55,3 +55,18 @@ export function passwordChangedMessage(to: string, name: string, supportUrl: str
     text: `مرحباً ${name}، تم تغيير كلمة مرور حسابك. إذا لم تقم بذلك أعد تعيينها فوراً: ${supportUrl}`,
   };
 }
+
+export function invitationMessage(to: string, inviterName: string, storeName: string, roleLabel: string, url: string): EmailMessage {
+  const who = inviterName ? `${escapeHtml(inviterName)} يدعوك` : "تمت دعوتك";
+  return {
+    to,
+    subject: `دعوة للانضمام إلى فريق ${storeName} — ${PRODUCT_NAME}`,
+    tag: "store_invitation",
+    html: layout(
+      "دعوة للانضمام إلى فريق متجر",
+      `${who} للانضمام إلى فريق متجر <strong>${escapeHtml(storeName)}</strong> بدور <strong>${escapeHtml(roleLabel)}</strong>. الدعوة صالحة لمدة 7 أيام. إذا لم يكن لديك حساب فأنشئه بهذا البريد نفسه.`,
+      { label: "قبول الدعوة", url },
+    ),
+    text: `${inviterName || "تمت دعوتك"} للانضمام إلى فريق متجر ${storeName} بدور ${roleLabel}. لقبول الدعوة (صالحة 7 أيام):\n${url}`,
+  };
+}

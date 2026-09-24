@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { audit, type RequestMeta } from "../audit";
 import { getDb } from "../db/client";
-import { storeMembers, stores, storeSettings, users, type StoreRole } from "../db/schema";
+import { products, storeMembers, stores, storeSettings, users, type StoreRole } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { AppError, forbidden, isUniqueViolation, notFound, rateLimited } from "../lib/errors";
 import { isUuid, uuidv7 } from "../lib/ids";
@@ -164,6 +164,40 @@ export async function updateStoreProfile(userId: string, storeId: string, input:
   });
 }
 
+/**
+ * Publishing requires a verified owner email (so every live store has a
+ * reachable, accountable owner) and at least one active product.
+ */
+export async function publishStore(userId: string, storeId: string, meta: RequestMeta = {}) {
+  const access = await requireStoreAccess(userId, storeId, "settings.write");
+  if (access.store.status === "suspended") throw new AppError("forbidden", "المتجر موقوف من إدارة المنصة. تواصل مع الدعم.");
+  const [owner] = await getDb().select({ verified: users.emailVerifiedAt }).from(users).where(eq(users.id, access.store.ownerUserId)).limit(1);
+  if (!owner?.verified) throw new AppError("precondition", "يجب تأكيد البريد الإلكتروني لمالك المتجر قبل النشر.");
+  await withTenant({ storeId, userId }, async (tx) => {
+    const [{ active }] = await tx
+      .select({ active: sql<number>`count(*)::int` })
+      .from(products)
+      .where(
+        and(
+          eq(products.status, "active"),
+          sql`exists (select 1 from product_variants v where v.product_id = products.id and v.archived_at is null)`,
+        ),
+      );
+    if (active === 0) throw new AppError("precondition", "أضف منتجاً واحداً على الأقل بحالة «منشور» قبل نشر المتجر.");
+    await tx.update(stores).set({ status: "published", publishedAt: sql`coalesce(${stores.publishedAt}, now())` }).where(eq(stores.id, storeId));
+    await audit({ storeId, actorId: userId, action: "store.published", targetType: "store", targetId: storeId, meta }, tx);
+  });
+}
+
+export async function unpublishStore(userId: string, storeId: string, meta: RequestMeta = {}) {
+  const access = await requireStoreAccess(userId, storeId, "settings.write");
+  if (access.store.status !== "published") return;
+  await withTenant({ storeId, userId }, async (tx) => {
+    await tx.update(stores).set({ status: "paused" }).where(eq(stores.id, storeId));
+    await audit({ storeId, actorId: userId, action: "store.paused", targetType: "store", targetId: storeId, meta }, tx);
+  });
+}
+
 export type ChecklistItem = { key: string; label: string; done: boolean; available: boolean; href?: string };
 
 /**
@@ -179,15 +213,25 @@ export async function getSetupChecklist(access: StoreAccess): Promise<ChecklistI
     .where(eq(users.id, access.store.ownerUserId))
     .limit(1);
   const base = `/dashboard/${access.storeId}`;
+  const productCounts = await withTenant({ storeId: access.storeId, userId: access.userId }, async (tx) => {
+    const [row] = await tx
+      .select({
+        total: sql<number>`count(*)::int`,
+        active: sql<number>`count(*) filter (where ${products.status} = 'active')::int`,
+      })
+      .from(products)
+      .where(sql`${products.status} <> 'archived'`);
+    return row;
+  });
   return [
     { key: "verify_email", label: "تأكيد البريد الإلكتروني", done: !!owner?.emailVerifiedAt, available: true, href: "/account/security" },
+    { key: "first_product", label: "إضافة أول منتج", done: productCounts.total > 0, available: true, href: `${base}/products/new` },
+    { key: "product_active", label: "نشر منتج واحد على الأقل", done: productCounts.active > 0, available: true, href: `${base}/products` },
     { key: "contact", label: "إضافة معلومات التواصل", done: !!(settings.contactPhone || settings.whatsapp || settings.contactEmail), available: true, href: `${base}/settings` },
-    { key: "brand", label: "اختيار لون المتجر", done: settings.brandColor !== "#0f766e", available: true, href: `${base}/settings` },
-    { key: "logo", label: "رفع الشعار", done: !!settings.logoUrl, available: false },
-    { key: "first_product", label: "إضافة أول منتج", done: false, available: false },
+    { key: "logo", label: "رفع الشعار", done: !!settings.logoUrl, available: true, href: `${base}/settings` },
+    { key: "publish", label: "نشر المتجر", done: access.store.status === "published", available: true, href: `${base}#publish` },
     { key: "shipping", label: "ضبط الشحن", done: false, available: false },
     { key: "payments", label: "تفعيل وسائل الدفع", done: false, available: false },
-    { key: "publish", label: "نشر المتجر", done: access.store.status === "published", available: false },
   ];
 }
 
