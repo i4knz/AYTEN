@@ -54,6 +54,13 @@ test("merchant adds a product with options and an image, publishes, and a shoppe
   await expect(page.getByText("فستان سهرة")).toBeVisible();
   await expect(page.getByText("8 متوفر")).toBeVisible();
 
+  // Shipping is required before publishing.
+  await page.goto(`/dashboard/${storeId}/settings/shipping`);
+  await page.getByLabel("الاسم").last().fill("توصيل");
+  await page.getByLabel("السعر (ر.س)").last().fill("25");
+  await page.getByRole("button", { name: "إضافة" }).click();
+  await expect(page.getByText("تم الحفظ.")).toBeVisible();
+
   // Publish.
   await page.goto(`/dashboard/${storeId}`);
   await page.getByRole("button", { name: "نشر المتجر" }).click();

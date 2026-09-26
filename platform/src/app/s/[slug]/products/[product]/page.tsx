@@ -59,6 +59,7 @@ export default async function ProductPage({ params }: PageProps<"/s/[slug]/produ
         </nav>
       )}
       <ProductView
+        slug={store.slug}
         name={product.name}
         description={product.description}
         options={options}

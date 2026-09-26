@@ -70,3 +70,16 @@ export function invitationMessage(to: string, inviterName: string, storeName: st
     text: `${inviterName || "تمت دعوتك"} للانضمام إلى فريق متجر ${storeName} بدور ${roleLabel}. لقبول الدعوة (صالحة 7 أيام):\n${url}`,
   };
 }
+
+export function newOrderMerchantMessage(to: string, name: string, number: number, total: string, url: string): EmailMessage {
+  return {
+    to,
+    subject: `طلب جديد #${number} — ${total}`,
+    tag: "order_created_merchant",
+    html: layout("وصلك طلب جديد", `مرحباً ${escapeHtml(name)}، وصل طلب جديد رقم <strong>#${number}</strong> بقيمة <strong>${escapeHtml(total)}</strong>.`, {
+      label: "عرض الطلب",
+      url,
+    }),
+    text: `طلب جديد #${number} بقيمة ${total}: ${url}`,
+  };
+}

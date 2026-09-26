@@ -1,11 +1,14 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useMemo, useState, useTransition } from "react";
 import { formatMoney } from "@/server/lib/money";
+import { addToCartAction } from "../../actions";
 
 type Variant = { id: string; values: string[]; price: number; compareAtPrice: number | null; inStock: boolean; lowStock: number | null };
 
 export function ProductView({
+  slug,
   name,
   description,
   options,
@@ -14,6 +17,7 @@ export function ProductView({
   whatsapp,
   productUrl,
 }: {
+  slug: string;
   name: string;
   description: string;
   options: { name: string; values: string[] }[];
@@ -34,6 +38,15 @@ export function ProductView({
   const digits = whatsapp?.replace(/\D/g, "");
   const waHref = digits ? `https://wa.me/${digits}?text=${encodeURIComponent(`مرحباً، أرغب في طلب: ${name}${choice}\n${productUrl}`)}` : null;
   const image = images[imageIndex];
+  const [quantity, setQuantity] = useState(1);
+  const [pending, start] = useTransition();
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const add = () =>
+    variant &&
+    start(async () => {
+      const r = await addToCartAction(slug, variant.id, quantity);
+      setFeedback({ ok: !!r.ok, text: r.message ?? "" });
+    });
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
@@ -103,9 +116,27 @@ export function ProductView({
           </p>
         )}
 
+        {variant?.inStock && (
+          <div className="flex gap-2">
+            <div className="flex items-center rounded-(--radius) border border-line">
+              <button type="button" onClick={() => setQuantity((q) => Math.min(q + 1, 99))} className="px-3 py-2 text-lg" aria-label="زيادة الكمية">+</button>
+              <span className="min-w-6 text-center" aria-live="polite" aria-label="الكمية">{quantity}</span>
+              <button type="button" onClick={() => setQuantity((q) => Math.max(q - 1, 1))} className="px-3 py-2 text-lg" aria-label="تقليل الكمية">−</button>
+            </div>
+            <button type="button" onClick={add} disabled={pending} className="flex-1 rounded-(--radius) bg-(--store) px-5 py-3 font-semibold text-(--on-store) disabled:opacity-60">
+              {pending ? "جارٍ الإضافة…" : "أضف إلى السلة"}
+            </button>
+          </div>
+        )}
+        {feedback && (
+          <p role="status" className={`text-sm ${feedback.ok ? "text-emerald-700" : "text-red-700"}`}>
+            {feedback.text}{" "}
+            {feedback.ok && <Link href="/cart" className="font-semibold underline">عرض السلة</Link>}
+          </p>
+        )}
         {waHref && variant?.inStock && (
-          <a href={waHref} target="_blank" rel="noopener" className="rounded-xl bg-(--store) px-5 py-3 text-center font-semibold text-white">
-            اطلب عبر واتساب
+          <a href={waHref} target="_blank" rel="noopener" className="rounded-(--radius) border border-line px-5 py-3 text-center text-sm">
+            اسأل عن المنتج عبر واتساب
           </a>
         )}
 

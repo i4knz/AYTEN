@@ -100,11 +100,62 @@ export function Select({ className, ...props }: ComponentProps<"select">) {
   );
 }
 
-export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "warning"; children: ReactNode }) {
+export function Badge({ tone = "neutral", children }: { tone?: "neutral" | "success" | "warning" | "danger" | "info"; children: ReactNode }) {
   const tones = {
     neutral: "bg-muted text-ink-soft",
     success: "bg-emerald-100 text-emerald-800",
     warning: "bg-amber-100 text-amber-900",
+    danger: "bg-red-100 text-red-800",
+    info: "bg-sky-100 text-sky-900",
   };
-  return <span className={cx("inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium", tones[tone])}>{children}</span>;
+  return <span className={cx("inline-flex whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", tones[tone])}>{children}</span>;
+}
+
+export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-line bg-surface p-4">
+      <p className="text-xs text-ink-soft">{label}</p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
+      {hint && <p className="mt-1 text-xs text-ink-soft">{hint}</p>}
+    </div>
+  );
+}
+
+export function Pagination({ page, pageCount, href }: { page: number; pageCount: number; href: (page: number) => string }) {
+  if (pageCount <= 1) return null;
+  return (
+    <nav className="flex items-center justify-center gap-3 text-sm" aria-label="الصفحات">
+      {page > 1 && (
+        <Link href={href(page - 1)} className="text-brand">
+          السابق
+        </Link>
+      )}
+      <span className="text-ink-soft">
+        صفحة {page} من {pageCount}
+      </span>
+      {page < pageCount && (
+        <Link href={href(page + 1)} className="text-brand">
+          التالي
+        </Link>
+      )}
+    </nav>
+  );
+}
+
+export function Tabs({ items, current }: { items: { key: string; label: string; href: string; count?: number }[]; current: string }) {
+  return (
+    <nav className="flex gap-1 overflow-x-auto" aria-label="تصفية">
+      {items.map((t) => (
+        <Link
+          key={t.key}
+          href={t.href}
+          aria-current={t.key === current ? "page" : undefined}
+          className="shrink-0 rounded-full px-3 py-1.5 text-sm text-ink-soft hover:bg-muted aria-[current=page]:bg-ink aria-[current=page]:text-white"
+        >
+          {t.label}
+          {!!t.count && <span className="ms-1.5 rounded-full bg-brand px-1.5 text-[11px] text-white">{t.count}</span>}
+        </Link>
+      ))}
+    </nav>
+  );
 }

@@ -41,6 +41,8 @@ export default defineConfig({
       TRUST_PROXY: "0",
       // Every browser in the suite shares 127.0.0.1; per-IP limits are covered by integration tests.
       RATE_LIMIT_SCALE: "100",
+      PAYMENT_GATEWAY: "test",
+      PAYMENT_TEST_SECRET: "e2e-only-test-gateway-secret",
     },
   },
 });

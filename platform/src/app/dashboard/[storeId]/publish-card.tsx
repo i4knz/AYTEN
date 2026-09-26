@@ -53,9 +53,6 @@ export function PublishCard({
           <p className="text-sm leading-7 text-ink-soft">
             {status === "paused" ? "أعد النشر ليعود المتجر متاحاً لعملائك." : "عند النشر يصبح متجرك ومنتجاتك المنشورة متاحة لأي شخص لديه الرابط."}
           </p>
-          <Alert tone="info">
-            الطلب من المتجر والدفع قيد البناء. حتى اكتمالهما يستطيع عملاؤك تصفح المنتجات والتواصل معك عبر واتساب إذا أضفت رقمك في الإعدادات.
-          </Alert>
           {blockers.length > 0 && (
             <ul className="list-disc ps-5 text-sm text-amber-800">
               {blockers.map((b) => (

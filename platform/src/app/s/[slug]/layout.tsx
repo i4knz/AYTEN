@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getCart } from "@/server/commerce/cart";
+import { readCartToken } from "./cart-cookie";
 import { loadCategories, loadStorefront, whatsappLink } from "./data";
 
 export async function generateMetadata({ params }: LayoutProps<"/s/[slug]">): Promise<Metadata> {
@@ -17,7 +19,7 @@ export async function generateMetadata({ params }: LayoutProps<"/s/[slug]">): Pr
 export default async function StorefrontLayout({ children, params }: LayoutProps<"/s/[slug]">) {
   const store = await loadStorefront((await params).slug);
   if (!store) notFound();
-  const style = { ["--store" as string]: store.brandColor };
+  const style = { ["--store" as string]: store.brandColor, ["--on-store" as string]: "#ffffff", ["--radius" as string]: "0.9rem" };
 
   if (!store.isOpen) {
     const unavailable = store.status === "suspended" || store.status === "paused";
@@ -43,6 +45,7 @@ export default async function StorefrontLayout({ children, params }: LayoutProps
 
   const categories = (await loadCategories(store.id)).filter((c) => !c.parentId);
   const wa = whatsappLink(store.whatsapp, `مرحباً ${store.name}`);
+  const cart = await getCart(store.id, await readCartToken());
 
   return (
     <div className="flex min-h-full flex-1 flex-col bg-surface" style={style}>
@@ -57,11 +60,19 @@ export default async function StorefrontLayout({ children, params }: LayoutProps
             )}
             <span className="truncate text-lg font-bold">{store.name}</span>
           </Link>
-          {wa && (
-            <a href={wa} target="_blank" rel="noopener" className="shrink-0 rounded-full border border-line px-3 py-1.5 text-sm">
-              واتساب
-            </a>
-          )}
+          <div className="flex shrink-0 items-center gap-2">
+            {wa && (
+              <a href={wa} target="_blank" rel="noopener" className="rounded-full border border-line px-3 py-1.5 text-sm">
+                واتساب
+              </a>
+            )}
+            <Link href="/cart" className="relative rounded-full border border-line px-3 py-1.5 text-sm" aria-label={`السلة (${cart.itemCount})`}>
+              السلة
+              {cart.itemCount > 0 && (
+                <span className="absolute -end-2 -top-2 flex size-5 items-center justify-center rounded-full bg-(--store) text-[11px] text-(--on-store)">{cart.itemCount}</span>
+              )}
+            </Link>
+          </div>
         </div>
         {categories.length > 0 && (
           <nav aria-label="التصنيفات" className="mx-auto max-w-6xl overflow-x-auto px-4 pb-2">
@@ -84,6 +95,9 @@ export default async function StorefrontLayout({ children, params }: LayoutProps
       </header>
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6">{children}</main>
       <footer className="border-t border-line py-6 text-center text-xs text-ink-soft">
+        <nav className="mb-2 flex justify-center gap-4">
+          <Link href="/track">تتبع طلبك</Link>
+        </nav>
         © {new Date().getFullYear()} {store.name}
       </footer>
     </div>

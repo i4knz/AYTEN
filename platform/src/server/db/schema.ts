@@ -79,6 +79,9 @@ export const storeSettings = pgTable("store_settings", {
   vatNumber: text("vat_number"),
   commercialRegistration: text("commercial_registration"),
   policies: jsonb("policies").notNull().default({}),
+  // Defaults are applied by the database (see 0003_orders.sql).
+  payments: jsonb("payments").$type<PaymentSettings>().notNull().default(sql`DEFAULT`),
+  checkout: jsonb("checkout").$type<{ requireEmail: boolean }>().notNull().default(sql`DEFAULT`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });
 
@@ -228,4 +231,272 @@ export const inventoryMovements = pgTable("inventory_movements", {
   actorUserId: uuid("actor_user_id"),
   note: text("note"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+// ---------------------------------------------------------------------------
+// 0003: orders
+// ---------------------------------------------------------------------------
+
+export interface PaymentSettings {
+  cod: { enabled: boolean; fee: number };
+  bankTransfer: { enabled: boolean; bankName?: string; accountName?: string; iban?: string };
+  online: { enabled: boolean };
+}
+
+export const customers = pgTable("customers", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  phone: text("phone").notNull(),
+  email: citext("email"),
+  name: text("name").notNull(),
+  acceptsMarketing: boolean("accepts_marketing").notNull().default(false),
+  marketingConsentAt: tz("marketing_consent_at"),
+  note: text("note"),
+  ordersCount: integer("orders_count").notNull().default(0),
+  cancelledCount: integer("cancelled_count").notNull().default(0),
+  totalSpent: bigint("total_spent", { mode: "number" }).notNull().default(0),
+  firstOrderAt: tz("first_order_at"),
+  lastOrderAt: tz("last_order_at"),
+  anonymizedAt: tz("anonymized_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const SHIPPING_TYPES = ["flat", "free_over", "pickup"] as const;
+
+export const shippingMethods = pgTable("shipping_methods", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  name: text("name").notNull(),
+  type: text("type", { enum: SHIPPING_TYPES }).notNull(),
+  price: bigint("price", { mode: "number" }).notNull().default(0),
+  freeThreshold: bigint("free_threshold", { mode: "number" }),
+  cities: text("cities").array().notNull().default(sql`'{}'`),
+  estimatedDays: text("estimated_days"),
+  pickupAddress: text("pickup_address"),
+  active: boolean("active").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const COUPON_TYPES = ["percent", "fixed", "free_shipping"] as const;
+export type CouponType = (typeof COUPON_TYPES)[number];
+
+export const coupons = pgTable("coupons", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  code: citext("code").notNull(),
+  type: text("type", { enum: COUPON_TYPES }).notNull(),
+  value: bigint("value", { mode: "number" }).notNull().default(0),
+  maxDiscount: bigint("max_discount", { mode: "number" }),
+  minSubtotal: bigint("min_subtotal", { mode: "number" }),
+  startsAt: tz("starts_at"),
+  endsAt: tz("ends_at"),
+  usageLimit: integer("usage_limit"),
+  usageLimitPerCustomer: integer("usage_limit_per_customer"),
+  usedCount: integer("used_count").notNull().default(0),
+  productIds: uuid("product_ids").array().notNull().default(sql`'{}'`),
+  categoryIds: uuid("category_ids").array().notNull().default(sql`'{}'`),
+  active: boolean("active").notNull().default(true),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const carts = pgTable("carts", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  tokenHash: bytea("token_hash").notNull(),
+  couponCode: citext("coupon_code"),
+  contactName: text("contact_name"),
+  contactPhone: text("contact_phone"),
+  contactEmail: citext("contact_email"),
+  checkoutStartedAt: tz("checkout_started_at"),
+  convertedOrderId: uuid("converted_order_id"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const cartItems = pgTable("cart_items", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  cartId: uuid("cart_id").notNull(),
+  variantId: uuid("variant_id").notNull(),
+  quantity: integer("quantity").notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const orderCounters = pgTable("order_counters", {
+  storeId: uuid("store_id").primaryKey(),
+  lastNumber: bigint("last_number", { mode: "number" }).notNull().default(1000),
+});
+
+export const PAYMENT_METHODS = ["cod", "bank_transfer", "online"] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const PAYMENT_STATUSES = ["pending", "awaiting_transfer", "paid", "partially_refunded", "refunded", "failed", "voided"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export const FULFILLMENT_STATUSES = ["unfulfilled", "processing", "ready", "shipped", "delivered", "returned", "cancelled"] as const;
+export type FulfillmentStatus = (typeof FULFILLMENT_STATUSES)[number];
+
+export interface CustomerSnapshot {
+  name: string;
+  phone: string;
+  email: string | null;
+}
+export interface ShippingAddress {
+  city: string;
+  district: string;
+  street: string;
+  details: string;
+  postalCode: string;
+}
+export interface ShippingMethodSnapshot {
+  id: string | null;
+  name: string;
+  type: (typeof SHIPPING_TYPES)[number];
+  estimatedDays: string | null;
+  pickupAddress: string | null;
+}
+
+export const orders = pgTable("orders", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  number: bigint("number", { mode: "number" }).notNull(),
+  accessKey: text("access_key").notNull(),
+  customerId: uuid("customer_id").notNull(),
+  source: text("source", { enum: ["storefront", "manual"] }).notNull().default("storefront"),
+  currency: text("currency").notNull(),
+  subtotal: bigint("subtotal", { mode: "number" }).notNull(),
+  discountTotal: bigint("discount_total", { mode: "number" }).notNull().default(0),
+  shippingTotal: bigint("shipping_total", { mode: "number" }).notNull().default(0),
+  paymentFee: bigint("payment_fee", { mode: "number" }).notNull().default(0),
+  taxTotal: bigint("tax_total", { mode: "number" }).notNull().default(0),
+  total: bigint("total", { mode: "number" }).notNull(),
+  refundedTotal: bigint("refunded_total", { mode: "number" }).notNull().default(0),
+  pricesIncludeTax: boolean("prices_include_tax").notNull(),
+  taxRateBps: integer("tax_rate_bps").notNull().default(0),
+  paymentMethod: text("payment_method", { enum: PAYMENT_METHODS }).notNull(),
+  paymentStatus: text("payment_status", { enum: PAYMENT_STATUSES }).notNull(),
+  fulfillmentStatus: text("fulfillment_status", { enum: FULFILLMENT_STATUSES }).notNull().default("unfulfilled"),
+  status: text("status", { enum: ["open", "completed", "cancelled"] }).notNull().default("open"),
+  customerSnapshot: jsonb("customer_snapshot").$type<CustomerSnapshot>().notNull(),
+  shippingAddress: jsonb("shipping_address").$type<ShippingAddress>().notNull(),
+  shippingMethod: jsonb("shipping_method").$type<ShippingMethodSnapshot>().notNull(),
+  couponCode: citext("coupon_code"),
+  customerNote: text("customer_note"),
+  cancelReason: text("cancel_reason"),
+  cancelledAt: tz("cancelled_at"),
+  completedAt: tz("completed_at"),
+  idempotencyKey: text("idempotency_key").notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const orderItems = pgTable("order_items", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  productId: uuid("product_id"),
+  variantId: uuid("variant_id"),
+  productName: text("product_name").notNull(),
+  variantTitle: text("variant_title").notNull().default(""),
+  sku: text("sku"),
+  imageKey: text("image_key"),
+  unitPrice: bigint("unit_price", { mode: "number" }).notNull(),
+  quantity: integer("quantity").notNull(),
+  discountAmount: bigint("discount_amount", { mode: "number" }).notNull().default(0),
+  taxAmount: bigint("tax_amount", { mode: "number" }).notNull().default(0),
+  lineTotal: bigint("line_total", { mode: "number" }).notNull(),
+  stockState: text("stock_state", { enum: ["none", "reserved", "committed", "released"] }).notNull().default("none"),
+});
+
+export const orderEvents = pgTable("order_events", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  type: text("type").notNull(),
+  message: text("message").notNull(),
+  data: jsonb("data").notNull().default({}),
+  actorType: text("actor_type", { enum: ["customer", "user", "system", "provider"] }).notNull(),
+  actorId: uuid("actor_id"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const orderNotes = pgTable("order_notes", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  authorUserId: uuid("author_user_id"),
+  body: text("body").notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const payments = pgTable("payments", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  provider: text("provider").notNull(),
+  providerPaymentId: text("provider_payment_id"),
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  currency: text("currency").notNull(),
+  status: text("status", { enum: ["pending", "paid", "failed", "refunded", "partially_refunded", "voided"] }).notNull(),
+  failureReason: text("failure_reason"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const refunds = pgTable("refunds", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  reason: text("reason"),
+  restock: boolean("restock").notNull().default(false),
+  method: text("method", { enum: ["manual", "provider"] }).notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const shipments = pgTable("shipments", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  carrier: text("carrier"),
+  trackingNumber: text("tracking_number"),
+  trackingUrl: text("tracking_url"),
+  shippedAt: tz("shipped_at").notNull().default(sql`now()`),
+  deliveredAt: tz("delivered_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const couponRedemptions = pgTable("coupon_redemptions", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  couponId: uuid("coupon_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  customerId: uuid("customer_id").notNull(),
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  link: text("link"),
+  readAt: tz("read_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const webhookEvents = pgTable("webhook_events", {
+  id: uuid("id").primaryKey(),
+  provider: text("provider").notNull(),
+  eventId: text("event_id").notNull(),
+  type: text("type").notNull(),
+  payload: jsonb("payload").notNull(),
+  receivedAt: tz("received_at").notNull().default(sql`now()`),
+  processedAt: tz("processed_at"),
+  error: text("error"),
 });

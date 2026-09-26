@@ -1,4 +1,5 @@
 import { getDb, type Tx } from "./db/client";
+import { withTenant } from "./db/tenant";
 import { auditLogs } from "./db/schema";
 import { uuidv7 } from "./lib/ids";
 
@@ -25,6 +26,11 @@ export interface AuditEntry {
  * requires that transaction's tenant context to match `storeId`).
  */
 export async function audit(entry: AuditEntry, tx?: Tx): Promise<void> {
+  // Store-scoped entries outside a transaction need the tenant context for RLS.
+  if (!tx && entry.storeId) {
+    await withTenant({ storeId: entry.storeId }, (t) => audit(entry, t));
+    return;
+  }
   await (tx ?? getDb()).insert(auditLogs).values({
     id: uuidv7(),
     storeId: entry.storeId ?? null,

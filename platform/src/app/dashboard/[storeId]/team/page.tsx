@@ -19,6 +19,7 @@ const PERMISSION_LABELS: Record<string, string> = {
   "inventory.write": "تعديل المخزون",
   "reports.read": "التقارير",
   "design.write": "تصميم المتجر",
+  "marketing.write": "الكوبونات والتسويق",
   "settings.write": "الإعدادات",
   "team.manage": "إدارة الفريق",
   "billing.read": "عرض الفواتير",

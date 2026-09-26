@@ -16,8 +16,7 @@ export default async function SettingsPage({ params }: PageProps<"/dashboard/[st
   const canEdit = roleHas(access.role, "settings.write");
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-2xl font-bold">إعدادات المتجر</h1>
+    <div className="flex flex-col gap-6">
       {!canEdit && <Alert tone="info">يمكنك عرض الإعدادات فقط. التعديل متاح لمالك المتجر ومديره.</Alert>}
       <Card>
         <h2 className="mb-1 text-lg font-semibold">الشعار</h2>

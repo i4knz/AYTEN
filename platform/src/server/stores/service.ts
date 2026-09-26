@@ -184,6 +184,8 @@ export async function publishStore(userId: string, storeId: string, meta: Reques
         ),
       );
     if (active === 0) throw new AppError("precondition", "أضف منتجاً واحداً على الأقل بحالة «منشور» قبل نشر المتجر.");
+    const [{ shipping }] = await tx.select({ shipping: sql<number>`(select count(*)::int from shipping_methods where active)` }).from(stores).where(eq(stores.id, storeId));
+    if (shipping === 0) throw new AppError("precondition", "أضف طريقة شحن واحدة على الأقل قبل نشر المتجر.");
     await tx.update(stores).set({ status: "published", publishedAt: sql`coalesce(${stores.publishedAt}, now())` }).where(eq(stores.id, storeId));
     await audit({ storeId, actorId: userId, action: "store.published", targetType: "store", targetId: storeId, meta }, tx);
   });
@@ -218,6 +220,7 @@ export async function getSetupChecklist(access: StoreAccess): Promise<ChecklistI
       .select({
         total: sql<number>`count(*)::int`,
         active: sql<number>`count(*) filter (where ${products.status} = 'active')::int`,
+        shipping: sql<number>`(select count(*)::int from shipping_methods where active)`,
       })
       .from(products)
       .where(sql`${products.status} <> 'archived'`);
@@ -230,8 +233,7 @@ export async function getSetupChecklist(access: StoreAccess): Promise<ChecklistI
     { key: "contact", label: "إضافة معلومات التواصل", done: !!(settings.contactPhone || settings.whatsapp || settings.contactEmail), available: true, href: `${base}/settings` },
     { key: "logo", label: "رفع الشعار", done: !!settings.logoUrl, available: true, href: `${base}/settings` },
     { key: "publish", label: "نشر المتجر", done: access.store.status === "published", available: true, href: `${base}#publish` },
-    { key: "shipping", label: "ضبط الشحن", done: false, available: false },
-    { key: "payments", label: "تفعيل وسائل الدفع", done: false, available: false },
+    { key: "shipping", label: "إضافة طريقة شحن", done: productCounts.shipping > 0, available: true, href: `${base}/settings/shipping` },
   ];
 }
 

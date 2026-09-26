@@ -18,7 +18,7 @@ export async function asOwner<T>(fn: (client: Client) => Promise<T>): Promise<T>
 export async function resetDatabase() {
   await asOwner((c) =>
     c.query(
-      `TRUNCATE users, user_sessions, verification_tokens, rate_limit_buckets, stores, store_settings, store_members, audit_logs CASCADE`,
+      `TRUNCATE users, user_sessions, verification_tokens, rate_limit_buckets, stores, store_settings, store_members, audit_logs, webhook_events CASCADE`,
     ),
   );
 }

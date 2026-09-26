@@ -13,6 +13,7 @@ import { uuidv7 } from "@/server/lib/ids";
 import { publishStore, getSetupChecklist, requireStoreAccess } from "@/server/stores/service";
 import { storeMembers } from "@/server/db/schema";
 import { verifyEmail } from "@/server/auth/service";
+import { saveShippingMethod } from "@/server/commerce/shipping";
 import { makeProduct, shirtProduct, simpleProduct } from "../support/catalog";
 import { lastTokenFromOutbox, memoryStorage } from "../support/db";
 import { makeStore, makeUser } from "../support/factories";
@@ -285,6 +286,8 @@ describe("storefront catalog and publishing", () => {
     await verifyEmail(lastTokenFromOutbox("email_verify"));
     await expectCode(publishStore(owner.userId, storeId), "precondition");
     await makeProduct(owner.userId, storeId);
+    await expectCode(publishStore(owner.userId, storeId), "precondition");
+    await saveShippingMethod(owner.userId, storeId, null, { name: "توصيل", type: "flat", price: "20" });
     await publishStore(owner.userId, storeId);
     const access = await requireStoreAccess(owner.userId, storeId);
     expect(access.store.status).toBe("published");
