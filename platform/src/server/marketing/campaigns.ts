@@ -3,6 +3,7 @@ import { and, desc, eq, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { audit, type RequestMeta } from "../audit";
 import { fieldErrors } from "../auth/schemas";
+import { assertPlanFeature } from "../billing/service";
 import { getDb } from "../db/client";
 import { CAMPAIGN_SEGMENTS, campaigns, customers, stores } from "../db/schema";
 import { withTenant } from "../db/tenant";
@@ -125,6 +126,7 @@ export async function sendCampaign(userId: string, storeId: string, campaignId: 
   if (!(await consume(`campaigns:${storeId}`, CAMPAIGNS_PER_DAY))) throw rateLimited();
   const [store] = await getDb().select().from(stores).where(eq(stores.id, storeId)).limit(1);
   if (store.status !== "published") throw new AppError("precondition", "انشر المتجر قبل إرسال الحملات.");
+  await withTenant({ storeId, userId }, (tx) => assertPlanFeature(tx, storeId, "campaigns", "الحملات التسويقية"));
 
   const { campaign, recipients } = await withTenant({ storeId, userId }, async (tx) => {
     const [c] = await tx.update(campaigns).set({ status: "sending" }).where(and(eq(campaigns.id, campaignId), eq(campaigns.status, "draft"))).returning();

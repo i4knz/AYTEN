@@ -3,8 +3,12 @@ import Link from "next/link";
 import { logoutAction } from "@/app/(auth)/actions";
 import { Badge } from "@/components/ui";
 import { mediaUrl } from "@/server/catalog/images";
+import { getAdminAccess } from "@/server/admin/access";
+import { STATUS_LABELS } from "@/server/billing/rules";
+import { getStorePlan } from "@/server/billing/service";
 import { listOrders } from "@/server/commerce/orders";
 import { listNotifications } from "@/server/notifications";
+import { listActiveAnnouncements } from "@/server/support/service";
 import { ROLE_LABELS, roleHas } from "@/server/stores/permissions";
 import { getStoreSettings, listMyStores } from "@/server/stores/service";
 import { storefrontUrl } from "@/server/urls";
@@ -17,12 +21,23 @@ const STATUS_LABEL = { draft: "مسودة", published: "منشور", paused: "م
 export default async function StoreLayout({ children, params }: LayoutProps<"/dashboard/[storeId]">) {
   const { storeId } = await params;
   const { session, access } = await loadStore(storeId);
-  const [stores, notifications, settings, orderCounts] = await Promise.all([
+  const [stores, notifications, settings, orderCounts, plan, announcements, admin] = await Promise.all([
     listMyStores(session.user.id),
     listNotifications(session.user.id, storeId),
     getStoreSettings(access),
     roleHas(access.role, "orders.read") ? listOrders(session.user.id, storeId, { tab: "new" }).then((r) => r.counts) : Promise.resolve({ new: 0, processing: 0 }),
+    getStorePlan(storeId),
+    listActiveAnnouncements(),
+    getAdminAccess(session.user.id),
   ]);
+  const billingHref = `/dashboard/${storeId}/billing`;
+  const planNotice = !plan.canTakeOrders
+    ? { tone: "danger", text: `متجرك لا يستقبل طلبات جديدة (الاشتراك ${STATUS_LABELS[plan.status]}).`, cta: "جدّد الاشتراك" }
+    : plan.status === "past_due"
+      ? { tone: "warning", text: "انتهت فترة اشتراكك وأنت في فترة السماح.", cta: "جدّد الآن" }
+      : plan.status === "trialing" && plan.daysLeft != null && plan.daysLeft <= 7
+        ? { tone: "info", text: `تنتهي فترتك التجريبية خلال ${plan.daysLeft} يوم.`, cta: "اختر باقة" }
+        : null;
   const store = access.store;
   const logo = mediaUrl(settings.logoUrl);
   const url = storefrontUrl(store.slug);
@@ -60,7 +75,7 @@ export default async function StoreLayout({ children, params }: LayoutProps<"/da
             </div>
           </details>
         </div>
-        <DashboardNav storeId={storeId} newOrders={orderCounts.new} />
+        <DashboardNav storeId={storeId} newOrders={orderCounts.new} isAdmin={!!admin} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -97,6 +112,39 @@ export default async function StoreLayout({ children, params }: LayoutProps<"/da
             </details>
           </div>
         </header>
+        {(planNotice || announcements.length > 0 || store.status === "suspended") && (
+          <div className="flex flex-col gap-2 px-4 pt-4 print:hidden md:px-8">
+            {store.status === "suspended" && (
+              <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                أوقفت إدارة المنصة هذا المتجر{store.suspendedReason ? `: ${store.suspendedReason}` : "."}{" "}
+                <Link href={`/dashboard/${storeId}/help/tickets/new`} className="font-semibold underline">
+                  تواصل مع الدعم
+                </Link>
+              </div>
+            )}
+            {planNotice && (
+              <div
+                role="status"
+                className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm ${
+                  planNotice.tone === "danger" ? "border-red-200 bg-red-50 text-red-800" : planNotice.tone === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-sky-200 bg-sky-50 text-sky-900"
+                }`}
+              >
+                <span>{planNotice.text}</span>
+                {roleHas(access.role, "billing.read") && (
+                  <Link href={billingHref} className="font-semibold underline">
+                    {planNotice.cta}
+                  </Link>
+                )}
+              </div>
+            )}
+            {announcements.map((a) => (
+              <div key={a.id} role="status" className={`rounded-xl border px-4 py-3 text-sm ${a.level === "warning" ? "border-amber-200 bg-amber-50 text-amber-900" : "border-line bg-surface"}`}>
+                <p className="font-semibold">{a.title}</p>
+                {a.body && <p className="mt-0.5 text-ink-soft">{a.body}</p>}
+              </div>
+            ))}
+          </div>
+        )}
         <main className="flex-1 px-4 py-6 md:px-8">{children}</main>
       </div>
     </div>

@@ -21,6 +21,7 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       DATABASE_URL: TEST_DB,
+      ADMIN_DATABASE_URL: process.env.TEST_ADMIN_DATABASE_URL ?? "postgres://ayten_admin:ayten_admin_dev@localhost:5432/ayten_test",
       TEST_DATABASE_OWNER_URL: TEST_DB_OWNER,
       APP_URL: "http://localhost:3000",
       EMAIL_TRANSPORT: "log",

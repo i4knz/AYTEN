@@ -51,9 +51,12 @@ export const FEATURE_LIST: { key: keyof StoreFeatures; title: string; body: stri
   { key: "shareButtons", title: "أزرار المشاركة", body: "مشاركة المنتج عبر واتساب وإكس ونسخ الرابط من صفحة المنتج." },
 ];
 
+/** Features switched on from the apps page rather than the features list. */
+export const APP_FEATURE_KEYS: (keyof StoreFeatures)[] = ["googleFeed"];
+
 export async function setFeature(userId: string, storeId: string, key: keyof StoreFeatures, enabled: boolean, meta: RequestMeta = {}) {
   await requireStoreAccess(userId, storeId, "settings.write");
-  if (!FEATURE_LIST.some((f) => f.key === key)) throw new AppError("validation", "ميزة غير معروفة.");
+  if (!FEATURE_LIST.some((f) => f.key === key) && !APP_FEATURE_KEYS.includes(key)) throw new AppError("validation", "ميزة غير معروفة.");
   await withTenant({ storeId, userId }, async (tx) => {
     const [row] = await tx.select({ features: storeSettings.features }).from(storeSettings).where(eq(storeSettings.storeId, storeId)).limit(1);
     await tx.update(storeSettings).set({ features: { ...row.features, [key]: enabled } }).where(eq(storeSettings.storeId, storeId));

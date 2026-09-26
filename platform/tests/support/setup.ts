@@ -1,4 +1,5 @@
 import { afterAll, beforeEach } from "vitest";
+import { closeAdminDb } from "@/server/admin/db";
 import { closeDb } from "@/server/db/client";
 import { setEmailProvider } from "@/server/email";
 import { setStorage } from "@/server/storage";
@@ -14,4 +15,5 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await closeDb();
+  await closeAdminDb();
 });

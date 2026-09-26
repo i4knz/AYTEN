@@ -9,5 +9,6 @@ export default async function RegisterPage({ searchParams }: PageProps<"/registe
   const sp = await searchParams;
   const next = safeNextPath(typeof sp.next === "string" ? sp.next : undefined, "/onboarding");
   if (await getCurrentSession()) redirect(next === "/onboarding" ? "/dashboard" : next);
-  return <RegisterForm next={next} />;
+  const ref = typeof sp.ref === "string" && /^[A-Za-z0-9]{6,12}$/.test(sp.ref) ? sp.ref.toUpperCase() : undefined;
+  return <RegisterForm next={next} referralCode={ref} />;
 }

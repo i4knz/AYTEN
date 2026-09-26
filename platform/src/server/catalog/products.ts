@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, ilike, inArray, isNull, ne, sql } from "drizzle-orm";
 import { audit, type RequestMeta } from "../audit";
+import { assertWithinPlanLimit } from "../billing/service";
 import { type Tx } from "../db/client";
 import {
   categories,
@@ -66,6 +67,7 @@ export async function saveProduct(
 
   try {
     return await withTenant({ storeId, userId }, async (tx) => {
+      if (!productId) await assertWithinPlanLimit(tx, storeId, "products");
       const id = productId ?? uuidv7();
       const slug = await uniqueSlug(tx, toCatalogSlug(input.slug || input.name, "product"), productId ?? undefined);
 

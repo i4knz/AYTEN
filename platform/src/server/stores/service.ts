@@ -3,6 +3,7 @@ import { audit, type RequestMeta } from "../audit";
 import { getDb } from "../db/client";
 import { products, storeMembers, stores, storeSettings, users, type StoreRole } from "../db/schema";
 import { withTenant } from "../db/tenant";
+import { createTrialSubscription } from "../billing/service";
 import { AppError, forbidden, isUniqueViolation, notFound, rateLimited } from "../lib/errors";
 import { isUuid, uuidv7 } from "../lib/ids";
 import { consume, RATE_LIMITS } from "../lib/rate-limit";
@@ -67,6 +68,7 @@ export async function createStore(userId: string, input: unknown, meta: RequestM
       await tx.insert(stores).values({ id: storeId, ownerUserId: userId, name, slug, businessType });
       await tx.insert(storeSettings).values({ storeId });
       await tx.insert(storeMembers).values({ id: uuidv7(), storeId, userId, role: "owner" });
+      await createTrialSubscription(tx, storeId);
       await audit(
         { storeId, actorId: userId, action: "store.created", targetType: "store", targetId: storeId, metadata: { slug }, meta },
         tx,

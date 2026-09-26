@@ -3,6 +3,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { audit, type RequestMeta } from "../audit";
 import { fieldErrors } from "../auth/schemas";
+import { countUsage, loadStorePlan } from "../billing/service";
 import type { Tx } from "../db/client";
 import { getDb } from "../db/client";
 import {
@@ -154,6 +155,12 @@ export async function placeOrder(storeId: string, cartToken: string | null | und
     const [existing] = await tx.select().from(orders).where(eq(orders.idempotencyKey, input.idempotencyKey)).limit(1);
     if (existing) {
       return { orderId: existing.id, number: existing.number, accessKey: existing.accessKey, total: existing.total, method: existing.paymentMethod, reused: true };
+    }
+    const storePlan = await loadStorePlan(tx, storeId);
+    if (!storePlan.canTakeOrders) throw new AppError("store_closed", "المتجر لا يستقبل طلبات حالياً.");
+    const monthlyLimit = storePlan.plan.limits.ordersPerMonth;
+    if (monthlyLimit != null && (await countUsage(tx, storeId)).ordersPerMonth >= monthlyLimit) {
+      throw new AppError("store_closed", "المتجر لا يستقبل طلبات حالياً.");
     }
 
     const cart = await findCart(tx, cartToken, { lock: true });

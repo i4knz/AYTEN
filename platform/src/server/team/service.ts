@@ -2,6 +2,7 @@ import { and, asc, eq, gt, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { audit, type RequestMeta } from "../audit";
 import { fieldErrors } from "../auth/schemas";
+import { assertWithinPlanLimit } from "../billing/service";
 import { getDb } from "../db/client";
 import {
   INVITABLE_ROLES,
@@ -98,8 +99,9 @@ export async function inviteMember(userId: string, storeId: string, input: unkno
       .from(storeMembers)
       .where(and(eq(storeMembers.storeId, storeId), eq(storeMembers.status, "active")));
     if (count >= MAX_MEMBERS) {
-      throw new AppError("limit_reached", `الحد الأقصى لأعضاء الفريق في النسخة التجريبية ${MAX_MEMBERS}.`);
+      throw new AppError("limit_reached", `الحد الأقصى لأعضاء الفريق ${MAX_MEMBERS}.`);
     }
+    await assertWithinPlanLimit(tx, storeId, "staff");
     const existing = await tx
       .select({ id: storeMembers.id })
       .from(storeMembers)

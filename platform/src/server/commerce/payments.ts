@@ -4,6 +4,7 @@ import { orderEvents, orderItems, orders, payments, stores, webhookEvents } from
 import { withTenant } from "../db/tenant";
 import { uuidv7 } from "../lib/ids";
 import { notify } from "../notifications";
+import { creditOnlineSale } from "../wallet/service";
 import { releaseOrderStock } from "./stock";
 
 export interface ProviderPaymentEvent {
@@ -49,6 +50,7 @@ export async function applyPaymentEvent(event: ProviderPaymentEvent): Promise<"a
     if (event.status === "paid") {
       await tx.update(payments).set({ status: "paid" }).where(eq(payments.id, payment.id));
       await tx.update(orders).set({ paymentStatus: "paid" }).where(eq(orders.id, order.id));
+      await creditOnlineSale(tx, event.storeId, order);
       await tx.insert(orderEvents).values({ id: uuidv7(), storeId: event.storeId, orderId: order.id, type: "payment.paid", message: "تم الدفع إلكترونياً بنجاح", actorType: "provider" });
       await notify(tx, event.storeId, { type: "payment.paid", title: `تم دفع الطلب #${order.number}`, link: `/dashboard/${event.storeId}/orders/${order.id}` });
     } else {

@@ -5,7 +5,7 @@ const SECURE = (process.env.APP_URL ?? "").startsWith("https://");
 const SESSION_COOKIE = SECURE ? "__Host-ayten_session" : "ayten_session";
 const ROOT_DOMAIN = (process.env.STOREFRONT_ROOT_DOMAIN ?? "localhost:3000").toLowerCase();
 const PLATFORM_SUBDOMAINS = new Set(["www", "app", "admin", "api"]);
-const PROTECTED = /^\/(dashboard|onboarding|account)(\/|$)/;
+const PROTECTED = /^\/(dashboard|onboarding|account|admin)(\/|$)/;
 
 /**
  * 1. Storefront routing: <slug>.<root domain>/path is rewritten to /s/<slug>/path.

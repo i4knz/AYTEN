@@ -16,6 +16,7 @@ import {
   Palette,
   Puzzle,
   Settings,
+  ShieldCheck,
   ShoppingBag,
   Star,
   Store,
@@ -43,30 +44,31 @@ function storeItems(counts: { newOrders: number }): Item[] {
     { label: "الصفحات", path: "/pages", icon: FileText, ready: true },
     { label: "التقييمات", path: "/reviews", icon: Star, ready: true },
     { label: "التقارير", path: "/reports", icon: ChartColumn, ready: true },
-    { label: "العمليات", path: "/wallet", icon: ArrowLeftRight, ready: false },
-    { label: "طلبات السحب", path: "/wallet/withdrawals", icon: Wallet, ready: false },
+    { label: "العمليات", path: "/wallet", icon: ArrowLeftRight, ready: true },
+    { label: "طلبات السحب", path: "/wallet/withdrawals", icon: Wallet, ready: true },
     { label: "الموظفين", path: "/team", icon: UserCog, ready: true },
     { label: "تصميم المتجر", path: "/design", icon: Palette, ready: true },
     { label: "التضمين", path: "/embed", icon: Code, ready: true },
     { label: "المزايا", path: "/features", icon: Puzzle, ready: true },
-    { label: "الاشتراك", path: "/billing", icon: CreditCard, ready: false },
+    { label: "الاشتراك", path: "/billing", icon: CreditCard, ready: true },
     { label: "إعدادات المتجر", path: "/settings", icon: Settings, ready: true },
   ];
 }
 
-const PLATFORM_ITEMS: { label: string; href: string; icon: LucideIcon; ready: boolean }[] = [
-  { label: "متجر التطبيقات", href: "/apps", icon: Store, ready: false },
-  { label: "برنامج الإحالات", href: "/referrals", icon: Gift, ready: false },
-  { label: "مركز المساعدة", href: "/help", icon: LifeBuoy, ready: false },
+const PLATFORM_ITEMS: Item[] = [
+  { label: "متجر التطبيقات", path: "/apps", icon: Store, ready: true },
+  { label: "برنامج الإحالات", path: "/referrals", icon: Gift, ready: true },
+  { label: "مركز المساعدة", path: "/help", icon: LifeBuoy, ready: true },
 ];
 
 const linkCls =
   "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium text-ink-soft hover:bg-muted hover:text-ink aria-[current=page]:bg-brand-soft aria-[current=page]:text-brand-strong";
 
-export function DashboardNav({ storeId, newOrders = 0 }: { storeId: string; newOrders?: number }) {
+export function DashboardNav({ storeId, newOrders = 0, isAdmin = false }: { storeId: string; newOrders?: number; isAdmin?: boolean }) {
   const pathname = usePathname();
   const base = `/dashboard/${storeId}`;
   const items = storeItems({ newOrders });
+  const platformActive = PLATFORM_ITEMS.find((i) => pathname === base + i.path || pathname.startsWith(`${base + i.path}/`))?.path;
   // The most specific matching path wins (e.g. /products/categories over /products).
   const activePath = items
     .filter((i) => (i.path ? pathname === base + i.path || pathname.startsWith(`${base + i.path}/`) : pathname === base))
@@ -96,28 +98,28 @@ export function DashboardNav({ storeId, newOrders = 0 }: { storeId: string; newO
           );
         })}
       </ul>
-      <div className="hidden md:block">
-        <p className="mb-1 px-3 text-xs font-semibold text-brand">المنصة</p>
-        <ul className="flex flex-col gap-1">
+      <div>
+        <p className="mb-1 hidden px-3 text-xs font-semibold text-brand md:block">المنصة</p>
+        <ul className="flex gap-1 md:flex-col">
           {PLATFORM_ITEMS.map((item) => {
             const Icon = item.icon;
             return (
-              <li key={item.label}>
-                {item.ready ? (
-                  <Link href={item.href} className={linkCls}>
-                    <Icon className="size-4.5" aria-hidden />
-                    {item.label}
-                  </Link>
-                ) : (
-                  <span aria-disabled="true" className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-ink-faint">
-                    <Icon className="size-4.5" aria-hidden />
-                    <span className="flex-1">{item.label}</span>
-                    <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">قريباً</span>
-                  </span>
-                )}
+              <li key={item.label} className="shrink-0">
+                <Link href={base + item.path} aria-current={platformActive === item.path ? "page" : undefined} className={linkCls}>
+                  <Icon className="size-4.5" aria-hidden />
+                  <span className="whitespace-nowrap">{item.label}</span>
+                </Link>
               </li>
             );
           })}
+          {isAdmin && (
+            <li className="shrink-0">
+              <Link href="/admin" className={linkCls}>
+                <ShieldCheck className="size-4.5" aria-hidden />
+                <span className="whitespace-nowrap">لوحة إدارة المنصة</span>
+              </Link>
+            </li>
+          )}
         </ul>
       </div>
     </nav>

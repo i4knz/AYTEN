@@ -32,6 +32,7 @@ export default defineConfig({
     reuseExistingServer: false,
     env: {
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? "postgres://ayten_app:ayten_app_dev@localhost:5432/ayten_test",
+      ADMIN_DATABASE_URL: process.env.TEST_ADMIN_DATABASE_URL ?? "postgres://ayten_admin:ayten_admin_dev@localhost:5432/ayten_test",
       APP_URL: BASE_URL,
       STOREFRONT_ROOT_DOMAIN: `localhost:${PORT}`,
       EMAIL_TRANSPORT: "log",

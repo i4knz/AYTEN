@@ -28,6 +28,7 @@ export async function registerAction(_prev: FormState, form: FormData): Promise<
         email: form.get("email"),
         password: form.get("password"),
         acceptTerms: form.get("acceptTerms") === "on",
+        ref: form.get("ref"),
       },
       await getRequestMeta(),
     );

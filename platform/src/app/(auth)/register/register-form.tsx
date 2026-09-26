@@ -7,7 +7,7 @@ import { Alert, Card, Field, Input } from "@/components/ui";
 import type { FormState } from "@/server/web";
 import { registerAction } from "../actions";
 
-export function RegisterForm({ next }: { next: string }) {
+export function RegisterForm({ next, referralCode }: { next: string; referralCode?: string }) {
   const [state, action] = useActionState<FormState, FormData>(registerAction, {});
   const e = state.fieldErrors ?? {};
   const v = state.values ?? {};
@@ -18,6 +18,7 @@ export function RegisterForm({ next }: { next: string }) {
       <form action={action} className="flex flex-col gap-4" noValidate>
         {state.message && !state.ok && <Alert>{state.message}</Alert>}
         <input type="hidden" name="next" value={next} />
+        {referralCode && <input type="hidden" name="ref" value={referralCode} />}
         <Field label="الاسم" name="name" error={e.name}>
           <Input id="name" name="name" autoComplete="name" required defaultValue={v.name} aria-invalid={!!e.name} />
         </Field>

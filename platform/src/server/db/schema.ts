@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   locale: text("locale").notNull().default("ar"),
   status: text("status", { enum: ["active", "suspended", "deleted"] }).notNull().default("active"),
   lastLoginAt: tz("last_login_at"),
+  referralCode: text("referral_code"),
+  referredBy: uuid("referred_by"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });
@@ -525,6 +527,7 @@ export interface StoreFeatures {
   stockHints: boolean;
   shareButtons: boolean;
   abandonedCartReminders?: boolean;
+  googleFeed?: boolean;
 }
 
 export const pages = pgTable("pages", {
@@ -594,4 +597,188 @@ export const campaigns = pgTable("campaigns", {
   createdBy: uuid("created_by"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+// ---------------------------------------------------------------------------
+// 0006: platform
+// ---------------------------------------------------------------------------
+
+export const ADMIN_ROLES = ["owner", "admin", "support", "finance", "content"] as const;
+export type AdminRole = (typeof ADMIN_ROLES)[number];
+
+export const platformAdmins = pgTable("platform_admins", {
+  userId: uuid("user_id").primaryKey(),
+  role: text("role", { enum: ADMIN_ROLES }).notNull(),
+  createdBy: uuid("created_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const platformSettings = pgTable("platform_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").notNull(),
+  updatedBy: uuid("updated_by"),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export interface PlanLimits {
+  products?: number | null;
+  staff?: number | null;
+  ordersPerMonth?: number | null;
+}
+export interface PlanFeatures {
+  campaigns?: boolean;
+  advancedReports?: boolean;
+  removeBranding?: boolean;
+}
+
+export const plans = pgTable("plans", {
+  id: uuid("id").primaryKey(),
+  key: text("key").notNull(),
+  name: text("name").notNull(),
+  description: text("description").notNull().default(""),
+  priceMonthly: bigint("price_monthly", { mode: "number" }).notNull(),
+  priceYearly: bigint("price_yearly", { mode: "number" }).notNull(),
+  currency: text("currency").notNull().default("SAR"),
+  trialDays: integer("trial_days").notNull().default(14),
+  limits: jsonb("limits").$type<PlanLimits>().notNull().default({}),
+  features: jsonb("features").$type<PlanFeatures>().notNull().default({}),
+  isPublic: boolean("is_public").notNull().default(true),
+  isDefault: boolean("is_default").notNull().default(false),
+  position: integer("position").notNull().default(0),
+  archivedAt: tz("archived_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const SUBSCRIPTION_STATUSES = ["trialing", "active", "past_due", "expired", "cancelled"] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export const subscriptions = pgTable("subscriptions", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  planId: uuid("plan_id").notNull(),
+  status: text("status", { enum: SUBSCRIPTION_STATUSES }).notNull(),
+  billingInterval: text("billing_interval", { enum: ["monthly", "yearly"] }).notNull().default("monthly"),
+  trialEndsAt: tz("trial_ends_at"),
+  currentPeriodEnd: tz("current_period_end"),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const platformInvoices = pgTable("platform_invoices", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  number: bigint("number", { mode: "number" }).notNull().default(sql`nextval('platform_invoice_number')`),
+  planId: uuid("plan_id").notNull(),
+  planName: text("plan_name").notNull(),
+  billingInterval: text("billing_interval", { enum: ["monthly", "yearly"] }).notNull(),
+  subtotal: bigint("subtotal", { mode: "number" }).notNull(),
+  tax: bigint("tax", { mode: "number" }).notNull().default(0),
+  total: bigint("total", { mode: "number" }).notNull(),
+  currency: text("currency").notNull().default("SAR"),
+  status: text("status", { enum: ["issued", "paid", "void"] }).notNull().default("issued"),
+  paymentMethod: text("payment_method", { enum: ["bank_transfer", "gateway", "waived"] }),
+  paymentReference: text("payment_reference"),
+  paidAt: tz("paid_at"),
+  voidedReason: text("voided_reason"),
+  issuedBy: uuid("issued_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const WALLET_TYPES = ["sale", "fee", "refund", "payout", "payout_reversal", "adjustment"] as const;
+
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  type: text("type", { enum: WALLET_TYPES }).notNull(),
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  description: text("description").notNull(),
+  orderId: uuid("order_id"),
+  payoutId: uuid("payout_id"),
+  availableAt: tz("available_at").notNull().default(sql`now()`),
+  createdBy: uuid("created_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const PAYOUT_STATUSES = ["pending", "approved", "paid", "rejected", "cancelled"] as const;
+
+export const payoutRequests = pgTable("payout_requests", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  amount: bigint("amount", { mode: "number" }).notNull(),
+  bankName: text("bank_name").notNull(),
+  accountName: text("account_name").notNull(),
+  iban: text("iban").notNull(),
+  status: text("status", { enum: PAYOUT_STATUSES }).notNull().default("pending"),
+  requestedBy: uuid("requested_by"),
+  adminNote: text("admin_note"),
+  transferReference: text("transfer_reference"),
+  processedBy: uuid("processed_by"),
+  processedAt: tz("processed_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const referralRewards = pgTable("referral_rewards", {
+  id: uuid("id").primaryKey(),
+  referrerId: uuid("referrer_id").notNull(),
+  referredUserId: uuid("referred_user_id").notNull(),
+  storeId: uuid("store_id"),
+  reward: text("reward").notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const HELP_CATEGORIES = ["start", "products", "orders", "payments", "shipping", "marketing", "account"] as const;
+
+export const helpArticles = pgTable("help_articles", {
+  id: uuid("id").primaryKey(),
+  slug: text("slug").notNull(),
+  category: text("category", { enum: HELP_CATEGORIES }).notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  published: boolean("published").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  updatedBy: uuid("updated_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const TICKET_CATEGORIES = ["store_down", "checkout", "payments", "orders", "billing", "technical", "question"] as const;
+export const TICKET_STATUSES = ["open", "waiting_support", "waiting_merchant", "resolved", "closed"] as const;
+
+export const supportTickets = pgTable("support_tickets", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  number: bigint("number", { mode: "number" }).generatedAlwaysAsIdentity(),
+  openedBy: uuid("opened_by"),
+  subject: text("subject").notNull(),
+  category: text("category", { enum: TICKET_CATEGORIES }).notNull(),
+  priority: integer("priority").notNull(),
+  status: text("status", { enum: TICKET_STATUSES }).notNull().default("open"),
+  assigneeId: uuid("assignee_id"),
+  rating: integer("rating"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const ticketMessages = pgTable("ticket_messages", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  ticketId: uuid("ticket_id").notNull(),
+  authorId: uuid("author_id"),
+  authorType: text("author_type", { enum: ["merchant", "support"] }).notNull(),
+  body: text("body").notNull(),
+  internal: boolean("internal").notNull().default(false),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  level: text("level", { enum: ["info", "warning"] }).notNull().default("info"),
+  startsAt: tz("starts_at").notNull().default(sql`now()`),
+  endsAt: tz("ends_at"),
+  createdBy: uuid("created_by"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
 });

@@ -8,6 +8,7 @@ import { AppError, isUniqueViolation, rateLimited } from "../lib/errors";
 import { uuidv7 } from "../lib/ids";
 import { consume, isLimited, RATE_LIMITS, resetLimit } from "../lib/rate-limit";
 import { generateToken, hashToken } from "../lib/tokens";
+import { attachReferrer, normalizeReferralCode } from "../referrals/service";
 import { burnPasswordCheck, hashPassword, passwordProblem, verifyPassword } from "./password";
 import {
   changePasswordSchema,
@@ -187,6 +188,7 @@ export async function register(input: unknown, meta: RequestMeta = {}) {
     throw err;
   }
 
+  await attachReferrer(userId, normalizeReferralCode((input as { ref?: unknown } | null)?.ref));
   await audit({ actorId: userId, action: "user.registered", targetType: "user", targetId: userId, meta });
   await issueVerificationEmail(userId, email, name);
   const sessionToken = await createSession(userId, meta);
