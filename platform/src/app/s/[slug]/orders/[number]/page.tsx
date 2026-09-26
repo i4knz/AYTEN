@@ -6,8 +6,11 @@ import { getCheckoutOptions } from "@/server/commerce/checkout";
 import { FULFILLMENT_LABELS, getOrderForShopper, PAYMENT_STATUS_LABELS } from "@/server/commerce/orders";
 import { formatMoney } from "@/server/lib/money";
 import { getStorage } from "@/server/storage";
-import { loadStorefront } from "../../data";
 import { RetryPayment } from "./retry";
+import { ReviewForm } from "./review-form";
+import { PurchaseEvent } from "../../tracking";
+import { reviewedProductIds } from "@/server/design/reviews";
+import { loadStorefront, loadStoreSettings } from "../../data";
 
 export const metadata: Metadata = { title: "حالة الطلب", robots: { index: false }, referrer: "no-referrer" };
 
@@ -25,10 +28,20 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/s/
   const cancelled = order.status === "cancelled";
   const stepIndex = order.fulfillmentStatus === "ready" ? 1 : STEPS.indexOf(order.fulfillmentStatus as (typeof STEPS)[number]);
   const bank = order.paymentMethod === "bank_transfer" && order.paymentStatus === "awaiting_transfer" ? (await getCheckoutOptions(store.id)).bankTransfer : null;
+  const settings = await loadStoreSettings(store.id);
+  const reviewable =
+    settings.features.reviews && order.fulfillmentStatus === "delivered"
+      ? (() => {
+          const seen = new Set<string>();
+          return items.filter((i) => i.productId && !seen.has(i.productId) && seen.add(i.productId));
+        })()
+      : [];
+  const reviewed = reviewable.length ? new Set(await reviewedProductIds(store.id, order.id)) : new Set<string>();
   const canPay = order.paymentMethod === "online" && !cancelled && ["pending", "failed"].includes(order.paymentStatus);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6">
+      {sp.new === "1" && !cancelled && <PurchaseEvent id={String(order.number)} value={order.total} currency={order.currency} />}
       {sp.new === "1" && !cancelled && (
         <div className="rounded-(--radius) bg-(--store) p-6 text-center text-(--on-store)">
           <p className="text-3xl">✓</p>
@@ -126,6 +139,19 @@ export default async function OrderPage({ params, searchParams }: PageProps<"/s/
           </div>
         </dl>
       </section>
+
+      {reviewable.length > 0 && (
+        <section className="flex flex-col gap-3 rounded-(--radius) border border-line p-4">
+          <h3 className="font-semibold">قيّم مشترياتك</h3>
+          {reviewable.map((i) =>
+            reviewed.has(i.productId!) ? (
+              <p key={i.id} className="text-sm text-ink-soft">✓ قيّمت «{i.productName}». شكراً لك!</p>
+            ) : (
+              <ReviewForm key={i.id} slug={slug} number={order.number} accessKey={order.accessKey} productId={i.productId!} productName={i.productName} />
+            ),
+          )}
+        </section>
+      )}
 
       <section>
         <h3 className="mb-3 font-semibold">سجل الطلب</h3>

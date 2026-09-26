@@ -82,6 +82,10 @@ export const storeSettings = pgTable("store_settings", {
   // Defaults are applied by the database (see 0003_orders.sql).
   payments: jsonb("payments").$type<PaymentSettings>().notNull().default(sql`DEFAULT`),
   checkout: jsonb("checkout").$type<{ requireEmail: boolean }>().notNull().default(sql`DEFAULT`),
+  themeDraft: jsonb("theme_draft"),
+  themePublishedAt: tz("theme_published_at"),
+  tracking: jsonb("tracking").$type<TrackingSettings>().notNull().default(sql`DEFAULT`),
+  features: jsonb("features").$type<StoreFeatures>().notNull().default(sql`DEFAULT`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });
 
@@ -499,4 +503,53 @@ export const webhookEvents = pgTable("webhook_events", {
   receivedAt: tz("received_at").notNull().default(sql`now()`),
   processedAt: tz("processed_at"),
   error: text("error"),
+});
+
+// ---------------------------------------------------------------------------
+// 0004: design & content
+// ---------------------------------------------------------------------------
+
+export interface TrackingSettings {
+  ga4?: string;
+  gtm?: string;
+  metaPixel?: string;
+  tiktokPixel?: string;
+  snapPixel?: string;
+}
+
+export interface StoreFeatures {
+  whatsappButton: boolean;
+  reviews: boolean;
+  stockHints: boolean;
+  shareButtons: boolean;
+  abandonedCartReminders?: boolean;
+}
+
+export const pages = pgTable("pages", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  published: boolean("published").notNull().default(true),
+  showInFooter: boolean("show_in_footer").notNull().default(true),
+  position: integer("position").notNull().default(0),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+export const reviews = pgTable("reviews", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  productId: uuid("product_id").notNull(),
+  orderId: uuid("order_id").notNull(),
+  customerId: uuid("customer_id").notNull(),
+  authorName: text("author_name").notNull(),
+  rating: integer("rating").notNull(),
+  body: text("body").notNull().default(""),
+  status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
+  reply: text("reply"),
+  repliedAt: tz("replied_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });

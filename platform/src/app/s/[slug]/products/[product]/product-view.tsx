@@ -16,6 +16,10 @@ export function ProductView({
   images,
   whatsapp,
   productUrl,
+  showStockHints = true,
+  showShare = true,
+  aspect = "square",
+  rating = null,
 }: {
   slug: string;
   name: string;
@@ -25,6 +29,10 @@ export function ProductView({
   images: { id: string; url: string; alt: string; width: number; height: number }[];
   whatsapp: string | null;
   productUrl: string;
+  showStockHints?: boolean;
+  showShare?: boolean;
+  aspect?: "square" | "portrait";
+  rating?: { average: number; count: number } | null;
 }) {
   const firstAvailable = variants.find((v) => v.inStock) ?? variants[0];
   const [selected, setSelected] = useState<string[]>(firstAvailable.values);
@@ -40,18 +48,18 @@ export function ProductView({
   const image = images[imageIndex];
   const [quantity, setQuantity] = useState(1);
   const [pending, start] = useTransition();
-  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string; cart?: boolean } | null>(null);
   const add = () =>
     variant &&
     start(async () => {
       const r = await addToCartAction(slug, variant.id, quantity);
-      setFeedback({ ok: !!r.ok, text: r.message ?? "" });
+      setFeedback({ ok: !!r.ok, text: r.message ?? "", cart: !!r.ok });
     });
 
   return (
     <div className="grid gap-8 md:grid-cols-2">
       <div className="flex flex-col gap-3">
-        <div className="aspect-square overflow-hidden rounded-2xl bg-muted">
+        <div className={`overflow-hidden rounded-(--radius) bg-muted ${aspect === "portrait" ? "aspect-[3/4]" : "aspect-square"}`}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {image && <img src={image.url} alt={image.alt} width={image.width} height={image.height} className="size-full object-cover" />}
         </div>
@@ -76,6 +84,11 @@ export function ProductView({
 
       <div className="flex flex-col gap-5">
         <h1 className="text-2xl font-bold leading-snug">{name}</h1>
+        {rating && (
+          <a href="#reviews" className="-mt-3 flex items-center gap-1 text-sm text-ink-soft">
+            <span className="text-amber-500" aria-hidden>★</span> {rating.average.toFixed(1)} ({rating.count} تقييم)
+          </a>
+        )}
         <p className="text-xl">
           {variant ? (
             <>
@@ -112,7 +125,7 @@ export function ProductView({
 
         {variant && (
           <p className={`text-sm ${variant.inStock ? "text-emerald-700" : "text-red-700"}`}>
-            {!variant.inStock ? "نفدت الكمية" : variant.lowStock ? `متبقٍ ${variant.lowStock} فقط` : "متوفر"}
+            {!variant.inStock ? "نفدت الكمية" : showStockHints && variant.lowStock ? `متبقٍ ${variant.lowStock} فقط` : "متوفر"}
           </p>
         )}
 
@@ -123,7 +136,7 @@ export function ProductView({
               <span className="min-w-6 text-center" aria-live="polite" aria-label="الكمية">{quantity}</span>
               <button type="button" onClick={() => setQuantity((q) => Math.max(q - 1, 1))} className="px-3 py-2 text-lg" aria-label="تقليل الكمية">−</button>
             </div>
-            <button type="button" onClick={add} disabled={pending} className="flex-1 rounded-(--radius) bg-(--store) px-5 py-3 font-semibold text-(--on-store) disabled:opacity-60">
+            <button type="button" onClick={add} disabled={pending} className="flex-1 rounded-(--radius-btn) bg-(--store) px-5 py-3 font-semibold text-(--on-store) disabled:opacity-60">
               {pending ? "جارٍ الإضافة…" : "أضف إلى السلة"}
             </button>
           </div>
@@ -131,7 +144,7 @@ export function ProductView({
         {feedback && (
           <p role="status" className={`text-sm ${feedback.ok ? "text-emerald-700" : "text-red-700"}`}>
             {feedback.text}{" "}
-            {feedback.ok && <Link href="/cart" className="font-semibold underline">عرض السلة</Link>}
+            {feedback.cart && <Link href="/cart" className="font-semibold underline">عرض السلة</Link>}
           </p>
         )}
         {waHref && variant?.inStock && (
@@ -140,6 +153,16 @@ export function ProductView({
           </a>
         )}
 
+        {showShare && (
+          <div className="flex flex-wrap items-center gap-3 text-sm text-ink-soft">
+            <span>مشاركة:</span>
+            <a href={`https://wa.me/?text=${encodeURIComponent(`${name} ${productUrl}`)}`} target="_blank" rel="noopener noreferrer" className="hover:text-ink">واتساب</a>
+            <a href={`https://x.com/intent/post?text=${encodeURIComponent(name)}&url=${encodeURIComponent(productUrl)}`} target="_blank" rel="noopener noreferrer" className="hover:text-ink">إكس</a>
+            <button type="button" className="hover:text-ink" onClick={() => void navigator.clipboard?.writeText(productUrl).then(() => setFeedback({ ok: true, text: "تم نسخ الرابط." }))}>
+              نسخ الرابط
+            </button>
+          </div>
+        )}
         {description && <div className="whitespace-pre-line border-t border-line pt-5 text-sm leading-8 text-ink">{description}</div>}
       </div>
     </div>

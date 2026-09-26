@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { listStorefrontProducts } from "@/server/catalog/storefront";
-import { decodeParam, loadStorefront } from "../../data";
-import { ProductGrid } from "../../product-grid";
+import { ProductGridView } from "@/themes/sections";
+import { decodeParam, loadStorefront, loadTheme } from "../../data";
 
 async function load(params: PageProps<"/s/[slug]/categories/[category]">["params"]) {
   const { slug, category } = await params;
@@ -20,10 +20,11 @@ export async function generateMetadata({ params }: PageProps<"/s/[slug]/categori
 export default async function CategoryPage({ params }: PageProps<"/s/[slug]/categories/[category]">) {
   const data = await load(params);
   if (!data) notFound();
+  const theme = await loadTheme(data.store.id);
   return (
     <>
       <h1 className="mb-5 text-2xl font-bold">{data.categoryName}</h1>
-      <ProductGrid products={data.products} />
+      <ProductGridView products={data.products} theme={theme} />
     </>
   );
 }

@@ -21,7 +21,7 @@ export default async function CartPage({ params }: PageProps<"/s/[slug]/cart">) 
     return (
       <div className="flex flex-col items-center gap-4 py-20 text-center">
         <h1 className="text-2xl font-bold">سلتك فارغة</h1>
-        <Link href="/" className="rounded-(--radius) bg-(--store) px-5 py-3 font-semibold text-(--on-store)">
+        <Link href="/" className="rounded-(--radius-btn) bg-(--store) px-5 py-3 font-semibold text-(--on-store)">
           تصفح المنتجات
         </Link>
       </div>
@@ -81,7 +81,7 @@ export default async function CartPage({ params }: PageProps<"/s/[slug]/cart">) 
           </div>
         </dl>
         {cart.canCheckout ? (
-          <Link href="/checkout" className="rounded-(--radius) bg-(--store) px-5 py-3 text-center font-semibold text-(--on-store)">
+          <Link href="/checkout" className="rounded-(--radius-btn) bg-(--store) px-5 py-3 text-center font-semibold text-(--on-store)">
             إتمام الطلب
           </Link>
         ) : (

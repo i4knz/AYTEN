@@ -15,6 +15,7 @@ export interface StorefrontProductCard {
   imageUrl: string | null;
   imageAlt: string;
   inStock: boolean;
+  categorySlugs: string[];
 }
 
 export async function listStorefrontProducts(storeId: string, { categorySlug, limit = 48 }: { categorySlug?: string; limit?: number } = {}) {
@@ -41,6 +42,7 @@ export async function listStorefrontProducts(storeId: string, { categorySlug, li
         inStock: sql<boolean>`exists (select 1 from product_variants v join inventory_levels l on l.variant_id = v.id where v.product_id = products.id and v.archived_at is null and (not l.track_inventory or l.on_hand - l.reserved > 0))`,
         imageKey: sql<string | null>`(select storage_key from product_images i where i.product_id = products.id order by position, created_at limit 1)`,
         imageAlt: sql<string | null>`(select alt from product_images i where i.product_id = products.id order by position, created_at limit 1)`,
+        categorySlugs: sql<string[]>`coalesce((select array_agg(c.slug) from product_categories pc join categories c on c.id = pc.category_id where pc.product_id = products.id), '{}')`,
       })
       .from(products)
       .where(and(...conditions))
@@ -57,6 +59,7 @@ export async function listStorefrontProducts(storeId: string, { categorySlug, li
         imageUrl: r.imageKey ? getStorage().url(r.imageKey) : null,
         imageAlt: r.imageAlt || r.name,
         inStock: r.inStock,
+        categorySlugs: r.categorySlugs,
       }));
     return { categoryName, products: cards };
   });

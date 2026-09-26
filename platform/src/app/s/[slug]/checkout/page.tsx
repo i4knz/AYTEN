@@ -6,7 +6,7 @@ import { getCheckoutOptions } from "@/server/commerce/checkout";
 import { SA_CITIES } from "@/server/commerce/cities";
 import { uuidv7 } from "@/server/lib/ids";
 import { readCartToken } from "../cart-cookie";
-import { loadStorefront } from "../data";
+import { loadFooterPages, loadStorefront } from "../data";
 import { CheckoutForm } from "./checkout-form";
 
 export const metadata: Metadata = { title: "إتمام الطلب", robots: { index: false } };
@@ -17,7 +17,8 @@ export default async function CheckoutPage({ params }: PageProps<"/s/[slug]/chec
   if (!store?.isOpen) return null;
   const cart = await getCart(store.id, await readCartToken());
   if (!cart.lines.length) redirect("/cart");
-  const options = await getCheckoutOptions(store.id);
+  const [options, pages] = await Promise.all([getCheckoutOptions(store.id), loadFooterPages(store.id)]);
+  const policy = pages.find((p) => p.slug === "terms") ?? pages.find((p) => p.slug === "returns");
 
   if (!options.allShippingMethods.length || !options.paymentMethods.length) {
     return (
@@ -41,7 +42,7 @@ export default async function CheckoutPage({ params }: PageProps<"/s/[slug]/chec
       paymentMethods={options.paymentMethods}
       requireEmail={options.requireEmail}
       cities={SA_CITIES}
-      termsUrl="/pages/policies"
+      termsUrl={policy ? `/pages/${encodeURIComponent(policy.slug)}` : null}
     />
   );
 }

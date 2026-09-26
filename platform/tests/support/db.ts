@@ -45,4 +45,5 @@ export const memoryStorage: StorageProvider & { files: Map<string, Buffer> } = {
     this.files.delete(key);
   },
   url: (key) => `http://media.test/${key}`,
+  publicBase: () => "http://media.test/",
 };

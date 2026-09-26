@@ -128,3 +128,15 @@ export async function retryPaymentAction(slug: string, number: number, key: stri
   if (!data) throw new AppError("not_found", "الطلب غير موجود.");
   redirect(await getPaymentGateway().startPayment({ storeId: store.id, orderId: data.order.id }));
 }
+
+export async function submitReviewAction(slug: string, number: number, key: string, _prev: FormState, form: FormData): Promise<FormState> {
+  try {
+    const store = await openStore(slug);
+    const { submitReview } = await import("@/server/design/reviews");
+    await submitReview(store.id, number, key, { productId: form.get("productId"), rating: form.get("rating"), body: form.get("body") ?? "" });
+  } catch (err) {
+    return toFormState(err);
+  }
+  revalidatePath("/", "layout");
+  return { ok: true, message: "شكراً لتقييمك! سيظهر بعد مراجعة المتجر." };
+}

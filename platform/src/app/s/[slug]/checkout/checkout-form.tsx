@@ -32,7 +32,7 @@ export function CheckoutForm(props: {
   paymentMethods: Payment[];
   requireEmail: boolean;
   cities: string[];
-  termsUrl: string;
+  termsUrl: string | null;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(placeOrderAction.bind(null, props.slug), {});
   const v = state.values ?? {};
@@ -195,14 +195,16 @@ export function CheckoutForm(props: {
           )}
           <div className="flex justify-between border-t border-line pt-2 text-base font-bold"><dt>الإجمالي</dt><dd>{formatMoney(pricing.total)}</dd></div>
         </dl>
-        <p className="text-xs leading-6 text-ink-soft">
-          بإتمام الطلب فإنك توافق على{" "}
-          <a href={props.termsUrl} target="_blank" className="underline">
-            سياسات المتجر
-          </a>
-          .
-        </p>
-        <button type="submit" disabled={pending || !selected} className="rounded-(--radius) bg-(--store) px-5 py-3 font-semibold text-(--on-store) disabled:opacity-60">
+        {props.termsUrl && (
+          <p className="text-xs leading-6 text-ink-soft">
+            بإتمام الطلب فإنك توافق على{" "}
+            <a href={props.termsUrl} target="_blank" className="underline">
+              سياسات المتجر
+            </a>
+            .
+          </p>
+        )}
+        <button type="submit" disabled={pending || !selected} className="rounded-(--radius-btn) bg-(--store) px-5 py-3 font-semibold text-(--on-store) disabled:opacity-60">
           {pending ? "جارٍ إرسال الطلب…" : payment === "online" ? "المتابعة للدفع" : "تأكيد الطلب"}
         </button>
       </aside>

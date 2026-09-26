@@ -70,7 +70,7 @@ test("merchant adds a product with options and an image, publishes, and a shoppe
   const shopper = await browser.newContext();
   const s = await shopper.newPage();
   await s.goto(`http://${slug}.localhost:3100/`);
-  await expect(s.getByRole("link", { name: "فساتين" })).toBeVisible();
+  await expect(s.getByRole("link", { name: "فساتين" }).first()).toBeVisible();
   await s.getByRole("link", { name: /فستان سهرة/ }).click();
   await expect(s.getByRole("heading", { name: "فستان سهرة" })).toBeVisible();
   await expect(s.getByText("350 ر.س").first()).toBeVisible();

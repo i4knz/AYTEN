@@ -16,7 +16,10 @@
     "jobs": "tsx --env-file-if-exists=.env.local scripts/jobs.ts"
   },
   "dependencies": {
+    "@fontsource/almarai": "^5.3.0",
+    "@fontsource/cairo": "^5.3.0",
     "@fontsource/ibm-plex-sans-arabic": "^5.3.0",
+    "@fontsource/tajawal": "^5.3.0",
     "@node-rs/argon2": "^2.2.1",
     "drizzle-orm": "^0.45.3",
     "lucide-react": "^1.48.0",
