@@ -5,7 +5,8 @@ import { Clock, Gift, Headphones, RotateCcw, ShieldCheck, Star, Truck } from "lu
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { formatMoney } from "@/server/lib/money";
-import type { Section, ThemeConfig } from "./config";
+import { buttonClass, parseLocalDateTime, SPACING, youtubeId, type Section, type ThemeConfig } from "./config";
+import { Countdown } from "./countdown";
 
 export interface ProductCardData {
   id: string;
@@ -25,6 +26,8 @@ export interface StorefrontData {
   categories: { name: string; slug: string; imageUrl: string | null }[];
   reviews: { authorName: string; rating: number; body: string; productName: string }[];
   mediaBase: string;
+  /** Render time in ms, so time-based sections decide visibility without calling Date.now() while rendering. */
+  now: number;
 }
 
 const ICONS = { truck: Truck, shield: ShieldCheck, return: RotateCcw, support: Headphones, gift: Gift, clock: Clock };
@@ -47,6 +50,8 @@ function SmartLink({ href, className, children, preview }: { href: string; class
 
 export function ProductCard({ p, theme, preview }: { p: ProductCardData; theme: ThemeConfig; preview?: boolean }) {
   const card = theme.productCard.style === "card";
+  const centered = theme.productCard.align === "center";
+  const badges = theme.productCard.showBadge;
   return (
     <SmartLink href={`/products/${encodeURIComponent(p.slug)}`} preview={preview} className={`group flex flex-col gap-2 ${card ? "rounded-(--radius) bg-muted p-2" : ""}`}>
       <div className={`relative overflow-hidden rounded-(--radius) bg-muted ${theme.productCard.aspect === "portrait" ? "aspect-[3/4]" : "aspect-square"}`}>
@@ -55,13 +60,13 @@ export function ProductCard({ p, theme, preview }: { p: ProductCardData; theme: 
           <img src={p.imageUrl} alt={p.imageAlt} loading="lazy" className="size-full object-cover transition duration-300 group-hover:scale-[1.03]" />
         )}
         {!p.inStock && <span className="absolute start-2 top-2 rounded-full bg-black/75 px-2 py-0.5 text-xs text-white">نفدت الكمية</span>}
-        {p.inStock && p.compareAtPrice && (
+        {badges && p.inStock && p.compareAtPrice && (
           <span className="absolute start-2 top-2 rounded-full bg-(--store) px-2 py-0.5 text-xs text-(--on-store)">
             خصم {Math.round((1 - p.minPrice / p.compareAtPrice) * 100)}%
           </span>
         )}
       </div>
-      <div className={card ? "px-1 pb-1" : ""}>
+      <div className={`${card ? "px-1 pb-1" : ""} ${centered ? "text-center" : ""}`}>
         <h3 className="line-clamp-2 text-sm font-medium">{p.name}</h3>
         <p className="mt-1 text-sm">
           <strong>{formatMoney(p.minPrice)}</strong>
@@ -96,11 +101,23 @@ export function RenderSection({ section, data, theme, preview }: { section: Sect
     case "announcement": {
       const s = section.settings;
       if (!s.text) return null;
-      return (
-        <div className="-mx-4 -mt-6 mb-6 bg-(--store) px-4 py-2 text-center text-sm text-(--on-store)">
-          {s.link ? <SmartLink href={s.link} preview={preview} className="underline-offset-4 hover:underline">{s.text}</SmartLink> : s.text}
-        </div>
-      );
+      const content = s.link ? <SmartLink href={s.link} preview={preview} className="underline-offset-4 hover:underline">{s.text}</SmartLink> : s.text;
+      if (s.style === "marquee") {
+        return (
+          <div className="-mx-4 -mt-6 overflow-hidden bg-(--store) py-2 text-sm text-(--on-store)">
+            {/* Four equal copies; moving by half the strip loops seamlessly. */}
+            <div className="flex w-max animate-marquee whitespace-nowrap motion-reduce:w-full motion-reduce:animate-none motion-reduce:justify-center">
+              <span className="px-10">{content}</span>
+              {[1, 2, 3].map((n) => (
+                <span key={n} aria-hidden className="px-10 motion-reduce:hidden">
+                  {s.text}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      return <div className="-mx-4 -mt-6 bg-(--store) px-4 py-2 text-center text-sm text-(--on-store)">{content}</div>;
     }
     case "hero": {
       const s = section.settings;
@@ -117,7 +134,7 @@ export function RenderSection({ section, data, theme, preview }: { section: Sect
             {s.title && <h2 className="max-w-xl text-3xl font-bold leading-tight sm:text-4xl">{s.title}</h2>}
             {s.subtitle && <p className="max-w-xl text-base opacity-90">{s.subtitle}</p>}
             {s.buttonText && (
-              <SmartLink href={s.buttonLink || "#products"} preview={preview} className="mt-2 w-fit rounded-(--radius-btn) bg-(--store) px-6 py-3 font-semibold text-(--on-store)">
+              <SmartLink href={s.buttonLink || "#products"} preview={preview} className={`mt-2 ${buttonClass(theme)} ${bg && theme.layout.buttons !== "solid" ? "bg-white/90" : ""}`}>
                 {s.buttonText}
               </SmartLink>
             )}
@@ -280,12 +297,145 @@ export function RenderSection({ section, data, theme, preview }: { section: Sect
         </section>
       );
     }
+    case "slideshow": {
+      const s = section.settings;
+      const slides = s.slides.filter((sl) => sl.title || sl.image);
+      if (!slides.length) return null;
+      const height = { sm: "min-h-56", md: "min-h-80", lg: "min-h-[28rem]" }[s.height];
+      return (
+        <section aria-roledescription="carousel" aria-label="عروض" className="relative">
+          <ul className="flex snap-x snap-mandatory overflow-x-auto rounded-(--radius) [scrollbar-width:none]">
+            {slides.map((sl, i) => {
+              const bg = img(sl.image);
+              return (
+                <li key={i} id={`${section.id}-${i}`} aria-roledescription="slide" aria-label={`${i + 1} من ${slides.length}`} className={`relative flex ${height} w-full shrink-0 snap-center items-center overflow-hidden ${bg ? "" : "bg-muted"}`}>
+                  {bg && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={bg} alt="" loading={i === 0 ? "eager" : "lazy"} className="absolute inset-0 size-full object-cover" />
+                  )}
+                  {bg && <div className="absolute inset-0 bg-black" style={{ opacity: s.overlay / 100 }} />}
+                  <div className={`relative flex w-full flex-col gap-3 p-6 sm:p-12 ${bg ? "text-white" : ""}`}>
+                    {sl.title && <h2 className="max-w-xl text-3xl font-bold leading-tight sm:text-5xl">{sl.title}</h2>}
+                    {sl.subtitle && <p className="max-w-xl opacity-90">{sl.subtitle}</p>}
+                    {sl.buttonText && (
+                      <SmartLink href={sl.buttonLink || "#products"} preview={preview} className={`mt-2 ${buttonClass(theme)} ${bg && theme.layout.buttons !== "solid" ? "bg-white/90" : ""}`}>
+                        {sl.buttonText}
+                      </SmartLink>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {slides.length > 1 && (
+            <div className="absolute inset-x-0 bottom-3 flex justify-center gap-2">
+              {slides.map((_, i) => (
+                <a key={i} href={preview ? undefined : `#${section.id}-${i}`} aria-label={`الشريحة ${i + 1}`} className="size-2.5 rounded-full bg-white/80 ring-1 ring-black/10" />
+              ))}
+            </div>
+          )}
+        </section>
+      );
+    }
+    case "countdown": {
+      const s = section.settings;
+      const end = parseLocalDateTime(s.endsAt);
+      // An offer without an end date, or one that has already ended, is hidden from shoppers.
+      if (!preview && (!end || end.getTime() <= data.now)) return null;
+      const brand = s.style === "brand";
+      return (
+        <section className={`flex flex-col items-center gap-4 rounded-(--radius) p-8 text-center ${brand ? "bg-(--store) text-(--on-store)" : "bg-muted"}`}>
+          {s.title && <h2 className="text-2xl font-bold sm:text-3xl">{s.title}</h2>}
+          {s.subtitle && <p className="opacity-90">{s.subtitle}</p>}
+          {end ? <Countdown endsAt={end.getTime()} /> : <p className="text-sm opacity-80">حدد تاريخ ووقت انتهاء العرض ليظهر العدّاد.</p>}
+          {s.buttonText && (
+            <SmartLink href={s.buttonLink || "#products"} preview={preview} className={brand ? "rounded-(--radius-btn) bg-(--on-store) px-6 py-3 font-semibold text-(--store)" : buttonClass(theme)}>
+              {s.buttonText}
+            </SmartLink>
+          )}
+        </section>
+      );
+    }
+    case "banners": {
+      const s = section.settings;
+      // Shoppers only see tiles with an image; the editor shows placeholders so the merchant knows what to fill.
+      const tiles = s.tiles.filter((t) => (preview ? t.title || t.image : t.image));
+      if (!tiles.length) return null;
+      const aspect = { wide: "aspect-[16/9]", square: "aspect-square", tall: "aspect-[3/4]" }[s.aspect];
+      return (
+        <section className={`grid gap-3 ${tiles.length === 1 ? "" : tiles.length === 2 ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+          {tiles.map((t, i) => {
+            const src = img(t.image);
+            return (
+              <SmartLink key={i} href={t.link} preview={preview} className={`group relative flex ${aspect} items-end overflow-hidden rounded-(--radius) ${src ? "" : "bg-muted"}`}>
+                {src && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={src} alt="" loading="lazy" className="absolute inset-0 size-full object-cover transition duration-500 group-hover:scale-105" />
+                )}
+                {src && <span className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />}
+                {t.title && <span className={`relative p-5 text-xl font-bold ${src ? "text-white" : ""}`}>{t.title}</span>}
+              </SmartLink>
+            );
+          })}
+        </section>
+      );
+    }
+    case "gallery": {
+      const s = section.settings;
+      const images = s.images.filter((i) => i.image);
+      if (!images.length) {
+        return preview ? <p className="rounded-(--radius) border border-dashed border-line p-6 text-center text-sm text-ink-soft">أضف صوراً لهذا القسم.</p> : null;
+      }
+      const logos = s.style === "logos";
+      const cols = { 2: "grid-cols-2", 3: "grid-cols-3", 4: "grid-cols-2 sm:grid-cols-4", 5: "grid-cols-3 sm:grid-cols-5", 6: "grid-cols-3 sm:grid-cols-6" }[s.columns];
+      return (
+        <section>
+          <SectionTitle>{s.title}</SectionTitle>
+          <ul className={`grid gap-3 ${cols}`}>
+            {images.map((g, i) => (
+              <li key={i}>
+                <SmartLink href={g.link} preview={preview} className={`block overflow-hidden ${logos ? "flex aspect-[3/2] items-center justify-center p-3" : "aspect-square rounded-(--radius) bg-muted"}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={img(g.image)!} alt={g.title} loading="lazy" className={logos ? "max-h-full max-w-full object-contain opacity-70 grayscale transition hover:opacity-100 hover:grayscale-0" : "size-full object-cover"} />
+                </SmartLink>
+              </li>
+            ))}
+          </ul>
+        </section>
+      );
+    }
+    case "video": {
+      const s = section.settings;
+      const id = youtubeId(s.url);
+      if (!id) return preview ? <p className="rounded-(--radius) border border-dashed border-line p-6 text-center text-sm text-ink-soft">الصق رابط فيديو من يوتيوب.</p> : null;
+      return (
+        <section className="mx-auto w-full max-w-4xl">
+          <SectionTitle>{s.title}</SectionTitle>
+          <div className="aspect-video overflow-hidden rounded-(--radius) bg-black">
+            {preview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`https://i.ytimg.com/vi/${id}/hqdefault.jpg`} alt="" className="size-full object-cover opacity-80" />
+            ) : (
+              <iframe
+                src={`https://www.youtube-nocookie.com/embed/${id}`}
+                title={s.title || "فيديو"}
+                loading="lazy"
+                allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                referrerPolicy="strict-origin-when-cross-origin"
+                className="size-full"
+              />
+            )}
+          </div>
+        </section>
+      );
+    }
   }
 }
 
 export function RenderSections({ theme, data, preview }: { theme: ThemeConfig; data: StorefrontData; preview?: boolean }) {
   return (
-    <div className="flex flex-col gap-10">
+    <div className={`flex flex-col ${SPACING[theme.layout.spacing]}`}>
       {theme.sections
         .filter((s) => s.visible)
         .map((s) => (

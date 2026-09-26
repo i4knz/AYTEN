@@ -12,6 +12,8 @@ import {
   RADII,
   SECTION_LABELS,
   themeCssVars,
+  WIDTHS,
+  youtubeId,
   type Section,
   type SectionType,
   type ThemeConfig,
@@ -115,6 +117,27 @@ function SectionFields({ section, update, storeId, mediaBase, categories }: { se
       <input type="range" min={min} max={max} value={Number(s[key])} onChange={(e) => set({ [key]: Number(e.target.value) })} />
     </Row>
   );
+  // Array-of-objects settings (slides, tiles, images): patch one item, add, remove.
+  const list = <T extends Record<string, unknown>>(key: string) => {
+    const items = (s[key] as T[]) ?? [];
+    return {
+      items,
+      patch: (i: number, patch: Partial<T>) => set({ [key]: items.map((x, j) => (j === i ? { ...x, ...patch } : x)) }),
+      remove: (i: number) => set({ [key]: items.filter((_, j) => j !== i) }),
+      add: (item: T) => set({ [key]: [...items, item] }),
+    };
+  };
+  const itemBox = (i: number, label: string, onRemove: () => void, children: ReactNode) => (
+    <div key={i} className="flex flex-col gap-1.5 rounded-lg border border-line p-2">
+      <div className="flex items-center justify-between text-xs font-semibold">
+        {label}
+        <button type="button" className="text-red-700" aria-label={`حذف ${label}`} onClick={onRemove}>
+          <Trash2 className="size-4" />
+        </button>
+      </div>
+      {children}
+    </div>
+  );
   const link = (key: string, label: string) => (
     <Row label={label}>
       <input value={String(s[key] ?? "")} maxLength={300} dir="ltr" placeholder="/categories/… أو https://…" onChange={(e) => set({ [key]: e.target.value })} className={inputCls} />
@@ -123,7 +146,7 @@ function SectionFields({ section, update, storeId, mediaBase, categories }: { se
 
   switch (section.type) {
     case "announcement":
-      return <>{text("text", "النص", 140)}{link("link", "الرابط (اختياري)")}</>;
+      return <>{text("text", "النص", 140)}{link("link", "الرابط (اختياري)")}{select("style", "الحركة", [["static", "ثابت"], ["marquee", "شريط متحرك"]])}</>;
     case "hero":
       return (
         <>
@@ -219,6 +242,113 @@ function SectionFields({ section, update, storeId, mediaBase, categories }: { se
       return <>{text("title", "العنوان", 80)}{text("body", "النص", 2000, true)}{select("align", "المحاذاة", [["center", "وسط"], ["start", "بداية"]])}</>;
     case "whatsapp_cta":
       return <>{text("title", "العنوان", 80)}{text("body", "النص", 200, true)}{text("buttonText", "نص الزر", 30)}</>;
+    case "slideshow": {
+      const l = list<{ image: string | null; title: string; subtitle: string; buttonText: string; buttonLink: string }>("slides");
+      return (
+        <div className="flex flex-col gap-2">
+          {l.items.map((sl, i) =>
+            itemBox(i, `الشريحة ${i + 1}`, () => l.remove(i), (
+              <>
+                <ImageField storeId={storeId} value={sl.image} mediaBase={mediaBase} onChange={(k) => l.patch(i, { image: k })} />
+                <input value={sl.title} maxLength={80} placeholder="العنوان" aria-label="عنوان الشريحة" onChange={(e) => l.patch(i, { title: e.target.value })} className={inputCls} />
+                <input value={sl.subtitle} maxLength={160} placeholder="نص فرعي" aria-label="النص الفرعي للشريحة" onChange={(e) => l.patch(i, { subtitle: e.target.value })} className={inputCls} />
+                <div className="grid grid-cols-2 gap-1">
+                  <input value={sl.buttonText} maxLength={30} placeholder="نص الزر" aria-label="نص زر الشريحة" onChange={(e) => l.patch(i, { buttonText: e.target.value })} className={inputCls} />
+                  <input value={sl.buttonLink} maxLength={300} dir="ltr" placeholder="/categories/…" aria-label="رابط زر الشريحة" onChange={(e) => l.patch(i, { buttonLink: e.target.value })} className={inputCls} />
+                </div>
+              </>
+            )),
+          )}
+          {l.items.length < 5 && (
+            <button type="button" className="text-xs text-brand" onClick={() => l.add({ image: null, title: "", subtitle: "", buttonText: "", buttonLink: "" })}>
+              + إضافة شريحة
+            </button>
+          )}
+          {select("height", "الارتفاع", [["sm", "صغير"], ["md", "متوسط"], ["lg", "كبير"]])}
+          {num("overlay", "تعتيم الصور %", 0, 80)}
+          <p className="text-xs text-ink-soft">يتنقل العميل بين الشرائح بالسحب أو النقاط؛ لا تتحرك تلقائياً حتى لا تزعج القراءة.</p>
+        </div>
+      );
+    }
+    case "countdown":
+      return (
+        <>
+          {text("title", "العنوان", 80)}
+          {text("subtitle", "النص الفرعي", 160)}
+          <Row label="ينتهي العرض في (بتوقيت السعودية)">
+            <input type="datetime-local" value={String(s.endsAt ?? "")} onChange={(e) => set({ endsAt: e.target.value })} className={inputCls} />
+          </Row>
+          {text("buttonText", "نص الزر", 30)}
+          {link("buttonLink", "رابط الزر")}
+          {select("style", "الشكل", [["brand", "بلون المتجر"], ["soft", "هادئ"]])}
+          <p className="text-xs text-ink-soft">يختفي القسم تلقائياً من المتجر بعد انتهاء الوقت. اجعل العرض حقيقياً — العدّاد الوهمي يضر بثقة العملاء.</p>
+        </>
+      );
+    case "banners": {
+      const l = list<{ image: string | null; title: string; link: string }>("tiles");
+      return (
+        <div className="flex flex-col gap-2">
+          {l.items.map((t, i) =>
+            itemBox(i, `البانر ${i + 1}`, () => l.remove(i), (
+              <>
+                <ImageField storeId={storeId} value={t.image} mediaBase={mediaBase} onChange={(k) => l.patch(i, { image: k })} />
+                <input value={t.title} maxLength={60} placeholder="العنوان" aria-label="عنوان البانر" onChange={(e) => l.patch(i, { title: e.target.value })} className={inputCls} />
+                <select value={t.link} aria-label="رابط البانر" onChange={(e) => l.patch(i, { link: e.target.value })} className={inputCls}>
+                  <option value="">بدون رابط</option>
+                  {categories.map((c) => (
+                    <option key={c.slug} value={`/categories/${c.slug}`}>
+                      تصنيف: {c.name}
+                    </option>
+                  ))}
+                  <option value="/search">صفحة البحث</option>
+                </select>
+              </>
+            )),
+          )}
+          {l.items.length < 3 && (
+            <button type="button" className="text-xs text-brand" onClick={() => l.add({ image: null, title: "", link: "" })}>
+              + إضافة بانر
+            </button>
+          )}
+          {select("aspect", "شكل البانر", [["wide", "عريض"], ["square", "مربع"], ["tall", "طولي"]])}
+        </div>
+      );
+    }
+    case "gallery": {
+      const l = list<{ image: string | null; title: string; link: string }>("images");
+      return (
+        <div className="flex flex-col gap-2">
+          {text("title", "العنوان", 60)}
+          {select("style", "النوع", [["grid", "معرض صور"], ["logos", "شعارات (علامات تجارية، شركاء)"]])}
+          {num("columns", "الأعمدة", 2, 6)}
+          {l.items.map((g, i) =>
+            itemBox(i, `الصورة ${i + 1}`, () => l.remove(i), (
+              <>
+                <ImageField storeId={storeId} value={g.image} mediaBase={mediaBase} onChange={(k) => l.patch(i, { image: k })} />
+                <input value={g.title} maxLength={60} placeholder="وصف الصورة (لقارئات الشاشة)" aria-label="وصف الصورة" onChange={(e) => l.patch(i, { title: e.target.value })} className={inputCls} />
+                <input value={g.link} maxLength={300} dir="ltr" placeholder="رابط اختياري" aria-label="رابط الصورة" onChange={(e) => l.patch(i, { link: e.target.value })} className={inputCls} />
+              </>
+            )),
+          )}
+          {l.items.length < 12 && (
+            <button type="button" className="text-xs text-brand" onClick={() => l.add({ image: null, title: "", link: "" })}>
+              + إضافة صورة
+            </button>
+          )}
+        </div>
+      );
+    }
+    case "video":
+      return (
+        <>
+          {text("title", "العنوان", 80)}
+          <Row label="رابط يوتيوب">
+            <input value={String(s.url ?? "")} maxLength={200} dir="ltr" placeholder="https://www.youtube.com/watch?v=…" onChange={(e) => set({ url: e.target.value })} className={inputCls} />
+          </Row>
+          {s.url && !youtubeId(String(s.url)) ? <p className="text-xs text-red-700">الرابط ليس رابط فيديو يوتيوب صالح.</p> : null}
+          <p className="text-xs text-ink-soft">يُعرض عبر youtube-nocookie ولا يُحمَّل إلا عند وصول العميل للقسم.</p>
+        </>
+      );
   }
 }
 
@@ -336,6 +466,46 @@ export function ThemeEditor({
                   ))}
                 </select>
               </Row>
+              <Row label="خط العناوين">
+                <select value={theme.headingFont ?? ""} onChange={(e) => update({ ...theme, headingFont: (e.target.value || null) as ThemeConfig["headingFont"] })} className={inputCls}>
+                  <option value="">مثل خط النص</option>
+                  {Object.entries(FONTS).map(([k, f]) => (
+                    <option key={k} value={k}>{f.label}</option>
+                  ))}
+                </select>
+              </Row>
+              <div className="grid grid-cols-2 gap-2">
+                <Row label="عرض الصفحة">
+                  <select value={theme.layout.width} onChange={(e) => update({ ...theme, layout: { ...theme.layout, width: e.target.value as ThemeConfig["layout"]["width"] } })} className={inputCls}>
+                    <option value="narrow">ضيّق</option>
+                    <option value="normal">عادي</option>
+                    <option value="wide">واسع</option>
+                  </select>
+                </Row>
+                <Row label="المسافة بين الأقسام">
+                  <select value={theme.layout.spacing} onChange={(e) => update({ ...theme, layout: { ...theme.layout, spacing: e.target.value as ThemeConfig["layout"]["spacing"] } })} className={inputCls}>
+                    <option value="compact">متقاربة</option>
+                    <option value="normal">عادية</option>
+                    <option value="airy">واسعة</option>
+                  </select>
+                </Row>
+              </div>
+              <Row label="شكل الأزرار">
+                <div className="grid grid-cols-3 gap-1" role="radiogroup" aria-label="شكل الأزرار">
+                  {(["solid", "outline", "soft"] as const).map((b) => (
+                    <button
+                      key={b}
+                      type="button"
+                      role="radio"
+                      aria-checked={theme.layout.buttons === b}
+                      onClick={() => update({ ...theme, layout: { ...theme.layout, buttons: b } })}
+                      className="rounded-lg border border-line p-1.5 text-xs aria-checked:border-brand aria-checked:bg-brand-soft"
+                    >
+                      {{ solid: "ممتلئ", outline: "إطار", soft: "ناعم" }[b]}
+                    </button>
+                  ))}
+                </div>
+              </Row>
               <Row label="استدارة الزوايا">
                 <select value={theme.radius} onChange={(e) => update({ ...theme, radius: e.target.value as ThemeConfig["radius"] })} className={inputCls}>
                   {Object.keys(RADII).map((k) => (
@@ -349,6 +519,16 @@ export function ThemeEditor({
                   <option value="portrait">طولية</option>
                 </select>
               </Row>
+              <Row label="محاذاة اسم المنتج وسعره">
+                <select value={theme.productCard.align} onChange={(e) => update({ ...theme, productCard: { ...theme.productCard, align: e.target.value as "start" | "center" } })} className={inputCls}>
+                  <option value="start">بداية</option>
+                  <option value="center">وسط</option>
+                </select>
+              </Row>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={theme.productCard.showBadge} onChange={(e) => update({ ...theme, productCard: { ...theme.productCard, showBadge: e.target.checked } })} className="accent-brand" />
+                إظهار شارة نسبة الخصم على الصور
+              </label>
               <Row label="بطاقة المنتج">
                 <select value={theme.productCard.style} onChange={(e) => update({ ...theme, productCard: { ...theme.productCard, style: e.target.value as "plain" | "card" } })} className={inputCls}>
                   <option value="plain">بسيطة</option>
@@ -414,6 +594,16 @@ export function ThemeEditor({
                   <option value="center">وسط</option>
                 </select>
               </Row>
+              <Row label="لون الترويسة">
+                <select value={theme.header.style} onChange={(e) => update({ ...theme, header: { ...theme.header, style: e.target.value as "light" | "brand" } })} className={inputCls}>
+                  <option value="light">فاتح (لون الخلفية)</option>
+                  <option value="brand">بلون المتجر</option>
+                </select>
+              </Row>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={theme.header.showSearch} onChange={(e) => update({ ...theme, header: { ...theme.header, showSearch: e.target.checked } })} className="accent-brand" />
+                إظهار البحث في الترويسة
+              </label>
               <label className="flex items-center gap-2 text-sm">
                 <input type="checkbox" checked={theme.header.showCategories} onChange={(e) => update({ ...theme, header: { ...theme.header, showCategories: e.target.checked } })} className="accent-brand" />
                 إظهار التصنيفات أسفل الترويسة
@@ -456,11 +646,11 @@ export function ThemeEditor({
         </div>
         <div className="flex flex-1 justify-center overflow-auto px-2 pb-4">
           <div
-            className={`overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-sm ${device === "mobile" ? "w-[390px] max-w-full" : "w-full max-w-6xl"}`}
+            className={`store-headings overflow-hidden rounded-2xl border border-line bg-surface text-ink shadow-sm ${device === "mobile" ? "w-[390px] max-w-full" : `w-full ${WIDTHS[theme.layout.width]}`}`}
             style={{ ...themeCssVars(theme), fontFamily: "var(--font-store)" } as CSSProperties}
           >
-            <div className={`flex items-center gap-2 border-b border-line px-4 py-3 ${theme.header.align === "center" ? "justify-center" : ""}`}>
-              <span className="flex size-9 items-center justify-center rounded-(--radius) bg-(--store) font-bold text-(--on-store)">{storeName.slice(0, 1)}</span>
+            <div className={`flex items-center gap-2 border-b px-4 py-3 ${theme.header.align === "center" ? "justify-center" : ""} ${theme.header.style === "brand" ? "border-transparent bg-(--store) text-(--on-store)" : "border-line"}`}>
+              <span className={`flex size-9 items-center justify-center rounded-(--radius) font-bold ${theme.header.style === "brand" ? "bg-(--on-store) text-(--store)" : "bg-(--store) text-(--on-store)"}`}>{storeName.slice(0, 1)}</span>
               <span className="font-bold">{storeName}</span>
             </div>
             <div className="px-4 py-6">

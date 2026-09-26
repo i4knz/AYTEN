@@ -13,6 +13,22 @@
   --color-muted: #f3f4f6;
   --color-surface: #ffffff;
   --color-canvas: #f7f8fa;
+
+  /* Storefront announcement ticker. RTL: text enters from the left. Disabled under prefers-reduced-motion. */
+  --animate-marquee: marquee 30s linear infinite;
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(50%);
+    }
+  }
+}
+
+/* Storefront headings can use a different font from body text. */
+.store-headings :is(h1, h2, h3) {
+  font-family: var(--font-heading, inherit);
 }
 
 html {

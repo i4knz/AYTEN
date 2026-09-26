@@ -9,6 +9,7 @@ import { verifyEmail } from "@/server/auth/service";
 import { getBillingOverview, getStorePlan, requestPlanInvoice, setCancelAtPeriodEnd, syncSubscriptionStatuses } from "@/server/billing/service";
 import { listFeedItems } from "@/server/catalog/feed";
 import { getProduct } from "@/server/catalog/products";
+import { listStorefrontProducts } from "@/server/catalog/storefront";
 import { addToCart } from "@/server/commerce/cart";
 import { placeOrder } from "@/server/commerce/checkout";
 import { applyPaymentEvent } from "@/server/commerce/payments";
@@ -380,6 +381,20 @@ describe("product feed", () => {
     const shirt = items.find((i) => i.id === "SH-0")!;
     expect(shirt).toMatchObject({ price: 15000, salePrice: 12000, inStock: true, title: "قميص قطني - أبيض / M" });
     expect(shirt.groupId).not.toBeNull();
+  });
+});
+
+describe("storefront search", () => {
+  it("matches name, description and SKU, only active products of this store", async () => {
+    const s = await shop();
+    await makeProduct(s.owner.userId, s.storeId, shirtProduct());
+    const other = await shop();
+    await makeProduct(other.owner.userId, other.storeId, shirtProduct({ name: "قميص آخر" }));
+    const byName = await listStorefrontProducts(s.storeId, { q: "قميص" });
+    expect(byName?.products.map((p) => p.name)).toEqual(["قميص قطني"]);
+    expect((await listStorefrontProducts(s.storeId, { q: "sh-2" }))?.products).toHaveLength(1);
+    expect((await listStorefrontProducts(s.storeId, { q: "شرقي فاخر" }))?.products).toHaveLength(2);
+    expect((await listStorefrontProducts(s.storeId, { q: "100%_" }))?.products).toHaveLength(0);
   });
 });
 

@@ -117,6 +117,7 @@ export async function getStorefrontData(storeId: string, store: { name: string; 
     categories: cats.map((c) => ({ name: c.name, slug: c.slug, imageUrl: c.imageKey ? getStorage().url(c.imageKey) : null })),
     reviews: reviewRows,
     mediaBase: getStorage().publicBase(),
+    now: Date.now(),
   };
 }
 

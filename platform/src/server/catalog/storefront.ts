@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import { categories, inventoryLevels, productCategories, productImages, productOptions, products, productVariants } from "../db/schema";
 import { withTenant } from "../db/tenant";
 import { getStorage } from "../storage";
@@ -18,10 +18,15 @@ export interface StorefrontProductCard {
   categorySlugs: string[];
 }
 
-export async function listStorefrontProducts(storeId: string, { categorySlug, limit = 48 }: { categorySlug?: string; limit?: number } = {}) {
+export async function listStorefrontProducts(storeId: string, { categorySlug, q, limit = 48 }: { categorySlug?: string; q?: string; limit?: number } = {}) {
   return withTenant({ storeId }, async (tx) => {
     let categoryName: string | null = null;
     const conditions = [eq(products.status, "active")];
+    const term = q?.trim().slice(0, 80);
+    if (term) {
+      const like = `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+      conditions.push(or(ilike(products.name, like), ilike(products.description, like), sql`exists (select 1 from product_variants v where v.product_id = products.id and v.archived_at is null and v.sku ilike ${like})`)!);
+    }
     if (categorySlug) {
       const [cat] = await tx.select({ id: categories.id, name: categories.name }).from(categories).where(eq(categories.slug, categorySlug)).limit(1);
       if (!cat) return null;

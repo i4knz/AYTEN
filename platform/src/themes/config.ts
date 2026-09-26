@@ -35,11 +35,27 @@ const BUTTON_RADII = { none: "0px", sm: "0.375rem", md: "0.75rem", lg: "1.25rem"
 
 export const FEATURE_ICONS = ["truck", "shield", "return", "support", "gift", "clock"] as const;
 
+/** YouTube video id from a watch, share, shorts or embed URL (only YouTube is embeddable). */
+export function youtubeId(url: string): string | null {
+  const m = url.trim().match(/^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/);
+  return m ? m[1] : null;
+}
+
+/** "YYYY-MM-DDTHH:mm" in Saudi time (UTC+3, no daylight saving). */
+export function parseLocalDateTime(value: string): Date | null {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return null;
+  const d = new Date(`${value}:00+03:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+const slide = z.object({ image: imageKey, title: text(80), subtitle: text(160), buttonText: text(30), buttonLink: link });
+const tile = z.object({ image: imageKey, title: text(60), link });
+
 const section = <T extends string, S extends z.ZodRawShape>(type: T, settings: S) =>
   z.object({ id: z.string().regex(/^[a-z0-9]{6,20}$/), type: z.literal(type), visible: z.boolean().default(true), settings: z.object(settings) });
 
 export const sectionSchema = z.discriminatedUnion("type", [
-  section("announcement", { text: text(140), link }),
+  section("announcement", { text: text(140), link, style: z.enum(["static", "marquee"]).default("static") }),
   section("hero", {
     title: text(80),
     subtitle: text(200),
@@ -69,6 +85,37 @@ export const sectionSchema = z.discriminatedUnion("type", [
   section("faq", { title: text(60), items: z.array(z.object({ q: text(150), a: text(600) })).max(12).default([]) }),
   section("rich_text", { title: text(80), body: text(2000), align: z.enum(["start", "center"]).default("center") }),
   section("whatsapp_cta", { title: text(80), body: text(200), buttonText: text(30) }),
+  section("slideshow", {
+    slides: z.array(slide).max(5).default([]),
+    height: z.enum(["sm", "md", "lg"]).default("md"),
+    overlay: z.number().int().min(0).max(80).default(30),
+  }),
+  section("countdown", {
+    title: text(80),
+    subtitle: text(160),
+    endsAt: z
+      .string()
+      .default("")
+      .refine((v) => v === "" || parseLocalDateTime(v) !== null, { error: "تاريخ غير صالح" }),
+    buttonText: text(30),
+    buttonLink: link,
+    style: z.enum(["brand", "soft"]).default("brand"),
+  }),
+  section("banners", { tiles: z.array(tile).max(3).default([]), aspect: z.enum(["wide", "square", "tall"]).default("wide") }),
+  section("gallery", {
+    title: text(60),
+    images: z.array(tile).max(12).default([]),
+    style: z.enum(["grid", "logos"]).default("grid"),
+    columns: z.number().int().min(2).max(6).default(4),
+  }),
+  section("video", {
+    title: text(80),
+    url: z
+      .string()
+      .max(200)
+      .default("")
+      .refine((v) => v === "" || youtubeId(v) !== null, { error: "رابط يوتيوب غير صالح" }),
+  }),
 ]);
 export type Section = z.infer<typeof sectionSchema>;
 export type SectionType = Section["type"];
@@ -79,9 +126,32 @@ export const themeSchema = z.object({
     .object({ primary: hex, background: hex, surface: hex, text: hex, muted: hex })
     .default({ primary: "#0f766e", background: "#ffffff", surface: "#f6f7f9", text: "#111827", muted: "#6b7280" }),
   font: z.enum(Object.keys(FONTS) as [FontKey, ...FontKey[]]).default("ibm-plex"),
+  // Null = same as the body font.
+  headingFont: z.enum(Object.keys(FONTS) as [FontKey, ...FontKey[]]).nullable().default(null),
+  layout: z
+    .object({
+      width: z.enum(["narrow", "normal", "wide"]).default("normal"),
+      spacing: z.enum(["compact", "normal", "airy"]).default("normal"),
+      buttons: z.enum(["solid", "outline", "soft"]).default("solid"),
+    })
+    .default({ width: "normal", spacing: "normal", buttons: "solid" }),
   radius: z.enum(Object.keys(RADII) as [keyof typeof RADII, ...(keyof typeof RADII)[]]).default("md"),
-  header: z.object({ align: z.enum(["start", "center"]).default("start"), showCategories: z.boolean().default(true) }).default({ align: "start", showCategories: true }),
-  productCard: z.object({ aspect: z.enum(["square", "portrait"]).default("square"), style: z.enum(["plain", "card"]).default("plain") }).default({ aspect: "square", style: "plain" }),
+  header: z
+    .object({
+      align: z.enum(["start", "center"]).default("start"),
+      showCategories: z.boolean().default(true),
+      style: z.enum(["light", "brand"]).default("light"),
+      showSearch: z.boolean().default(true),
+    })
+    .default({ align: "start", showCategories: true, style: "light", showSearch: true }),
+  productCard: z
+    .object({
+      aspect: z.enum(["square", "portrait"]).default("square"),
+      style: z.enum(["plain", "card"]).default("plain"),
+      align: z.enum(["start", "center"]).default("start"),
+      showBadge: z.boolean().default(true),
+    })
+    .default({ aspect: "square", style: "plain", align: "start", showBadge: true }),
   sections: z.array(sectionSchema).max(20).default([]),
   footer: z
     .object({
@@ -106,6 +176,11 @@ export const SECTION_LABELS: Record<SectionType, string> = {
   faq: "الأسئلة الشائعة",
   rich_text: "نص",
   whatsapp_cta: "دعوة للتواصل عبر واتساب",
+  slideshow: "عرض شرائح",
+  countdown: "عرض لفترة محدودة (عدّاد)",
+  banners: "بانرات التصنيفات",
+  gallery: "معرض صور / شعارات",
+  video: "فيديو يوتيوب",
 };
 
 let counter = 0;
@@ -118,7 +193,7 @@ export function defaultSection(type: SectionType, id = newSectionId()): Section 
   const base = { id, visible: true };
   switch (type) {
     case "announcement":
-      return { ...base, type, settings: { text: "شحن مجاني للطلبات فوق 200 ر.س", link: "" } };
+      return { ...base, type, settings: { text: "شحن مجاني للطلبات فوق 200 ر.س", link: "", style: "static" } };
     case "hero":
       return { ...base, type, settings: { title: "تشكيلة جديدة وصلت", subtitle: "اكتشف أحدث المنتجات بأسعار مميزة", buttonText: "تسوق الآن", buttonLink: "#products", image: null, align: "start", height: "md", overlay: 35 } };
     case "categories":
@@ -147,6 +222,37 @@ export function defaultSection(type: SectionType, id = newSectionId()): Section 
       return { ...base, type, settings: { title: "مرحباً بك", body: "", align: "center" } };
     case "whatsapp_cta":
       return { ...base, type, settings: { title: "عندك سؤال؟", body: "فريقنا يرد عليك مباشرة عبر واتساب.", buttonText: "راسلنا" } };
+    case "slideshow":
+      return {
+        ...base,
+        type,
+        settings: {
+          slides: [
+            { image: null, title: "مجموعة الموسم", subtitle: "تصاميم جديدة بكميات محدودة", buttonText: "تسوق الآن", buttonLink: "#products" },
+            { image: null, title: "الأكثر مبيعاً", subtitle: "اختيارات عملائنا المفضلة", buttonText: "اكتشف", buttonLink: "#products" },
+          ],
+          height: "md",
+          overlay: 30,
+        },
+      };
+    case "countdown":
+      return { ...base, type, settings: { title: "عرض نهاية الأسبوع", subtitle: "خصومات على منتجات مختارة", endsAt: "", buttonText: "تسوق العرض", buttonLink: "#products", style: "brand" } };
+    case "banners":
+      return {
+        ...base,
+        type,
+        settings: {
+          tiles: [
+            { image: null, title: "وصل حديثاً", link: "" },
+            { image: null, title: "العروض", link: "" },
+          ],
+          aspect: "wide",
+        },
+      };
+    case "gallery":
+      return { ...base, type, settings: { title: "من متجرنا", images: [], style: "grid", columns: 4 } };
+    case "video":
+      return { ...base, type, settings: { title: "شاهد منتجاتنا", url: "" } };
   }
 }
 
@@ -217,6 +323,75 @@ export const PRESETS: ThemePreset[] = [
   },
 ];
 
+PRESETS.push(
+  {
+    key: "minimal",
+    label: "بسيط",
+    description: "أبيض وأسود بمساحات واسعة — للعلامات الحديثة",
+    build: () =>
+      themeSchema.parse({
+        preset: "minimal",
+        colors: { primary: "#111111", background: "#ffffff", surface: "#f4f4f4", text: "#111111", muted: "#5f5f5f" },
+        font: "ibm-plex",
+        headingFont: "almarai",
+        radius: "none",
+        layout: { width: "wide", spacing: "airy", buttons: "outline" },
+        header: { align: "center", showCategories: true, style: "light", showSearch: true },
+        productCard: { aspect: "portrait", style: "plain", align: "center", showBadge: false },
+        sections: withSections(["slideshow", "banners", "products", "gallery", "rich_text"]),
+      }),
+  },
+  {
+    key: "modest",
+    label: "أناقة",
+    description: "للعبايات والأزياء المحتشمة: ألوان ترابية ناعمة",
+    build: () =>
+      themeSchema.parse({
+        preset: "modest",
+        colors: { primary: "#7c5c46", background: "#fbf8f4", surface: "#f1e9df", text: "#2b2118", muted: "#7a6a5c" },
+        font: "tajawal",
+        headingFont: "cairo",
+        radius: "sm",
+        layout: { width: "normal", spacing: "airy", buttons: "solid" },
+        header: { align: "center", showCategories: true, style: "light", showSearch: true },
+        productCard: { aspect: "portrait", style: "plain", align: "center", showBadge: true },
+        sections: withSections(["announcement", "slideshow", "categories", "products", "image_text", "reviews"]),
+      }),
+  },
+  {
+    key: "tech",
+    label: "تقني",
+    description: "للإلكترونيات والإكسسوارات: أزرق داكن وبطاقات واضحة",
+    build: () =>
+      themeSchema.parse({
+        preset: "tech",
+        colors: { primary: "#2563eb", background: "#f8fafc", surface: "#ffffff", text: "#0f172a", muted: "#64748b" },
+        font: "ibm-plex",
+        radius: "md",
+        layout: { width: "wide", spacing: "compact", buttons: "solid" },
+        header: { align: "start", showCategories: true, style: "brand", showSearch: true },
+        productCard: { aspect: "square", style: "card", align: "start", showBadge: true },
+        sections: withSections(["countdown", "banners", "products", "features", "video", "faq"]),
+      }),
+  },
+  {
+    key: "joy",
+    label: "مبهج",
+    description: "للهدايا والحلويات ومنتجات الأطفال: ألوان مرحة",
+    build: () =>
+      themeSchema.parse({
+        preset: "joy",
+        colors: { primary: "#db2777", background: "#fffbf5", surface: "#fdf2f8", text: "#1f1330", muted: "#6b5b7b" },
+        font: "cairo",
+        radius: "full",
+        layout: { width: "normal", spacing: "normal", buttons: "soft" },
+        header: { align: "start", showCategories: true, style: "light", showSearch: true },
+        productCard: { aspect: "square", style: "card", align: "center", showBadge: true },
+        sections: withSections(["announcement", "hero", "categories", "countdown", "products", "whatsapp_cta"]),
+      }),
+  },
+);
+
 export const defaultTheme = (brandColor?: string): ThemeConfig => {
   const t = PRESETS[0].build();
   if (brandColor && /^#[0-9a-fA-F]{6}$/.test(brandColor)) t.colors.primary = brandColor;
@@ -266,7 +441,24 @@ export function themeCssVars(t: ThemeConfig): Record<string, string> {
     "--color-ink-faint": t.colors.muted,
     "--color-line": `color-mix(in srgb, ${t.colors.text} 12%, transparent)`,
     "--font-store": `${FONTS[t.font].family}, system-ui, sans-serif`,
+    "--font-heading": `${FONTS[t.headingFont ?? t.font].family}, system-ui, sans-serif`,
   };
+}
+
+export const WIDTHS = { narrow: "max-w-5xl", normal: "max-w-6xl", wide: "max-w-7xl" } as const;
+export const SPACING = { compact: "gap-6", normal: "gap-10", airy: "gap-16" } as const;
+
+/** Classes for call-to-action buttons inside sections, per the theme's button style. */
+export function buttonClass(t: ThemeConfig): string {
+  const base = "inline-flex w-fit items-center justify-center rounded-(--radius-btn) px-6 py-3 font-semibold transition";
+  switch (t.layout.buttons) {
+    case "outline":
+      return `${base} border-2 border-(--store) text-(--store) hover:bg-(--store) hover:text-(--on-store)`;
+    case "soft":
+      return `${base} bg-(--store)/15 text-(--store) hover:bg-(--store)/25`;
+    default:
+      return `${base} bg-(--store) text-(--on-store) hover:opacity-90`;
+  }
 }
 
 export function contrastWarnings(t: ThemeConfig): string[] {
