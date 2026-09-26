@@ -83,3 +83,52 @@ export function newOrderMerchantMessage(to: string, name: string, number: number
     text: `طلب جديد #${number} بقيمة ${total}: ${url}`,
   };
 }
+
+function paragraphs(text: string) {
+  return text
+    .split(/\n{2,}/)
+    .map((p) => `<p style="line-height:1.9;margin:0 0 14px">${escapeHtml(p).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+export function abandonedCartMessage(to: string, name: string, storeName: string, items: string[], total: string, storeUrl: string): EmailMessage {
+  return {
+    to,
+    subject: `نسيت شيئاً في سلتك — ${storeName}`,
+    tag: "abandoned_cart",
+    html: layout(
+      `مرحباً ${name || ""}`,
+      `لاحظنا أنك لم تكمل طلبك من <strong>${escapeHtml(storeName)}</strong>: ${items.map(escapeHtml).join("، ")} (${escapeHtml(total)}). المنتجات ما زالت في سلتك على نفس الجهاز.`,
+      { label: "العودة للمتجر", url: storeUrl },
+    ),
+    text: `لم تكمل طلبك من ${storeName}: ${items.join("، ")} (${total}). ${storeUrl}`,
+  };
+}
+
+export function campaignMessage(
+  to: string,
+  name: string,
+  storeName: string,
+  subject: string,
+  body: string,
+  buttonText: string | null,
+  buttonLink: string | null,
+  unsubscribeUrl: string,
+): EmailMessage {
+  const cta = buttonText && buttonLink ? `<p><a href="${escapeHtml(buttonLink)}" style="background:#0f766e;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none;display:inline-block">${escapeHtml(buttonText)}</a></p>` : "";
+  const html = `<!doctype html><html lang="ar" dir="rtl"><body style="font-family:Tahoma,Arial,sans-serif;background:#f6f7f9;padding:24px;color:#111827">
+<div style="max-width:560px;margin:auto;background:#fff;border-radius:12px;padding:28px;text-align:right">
+<p style="font-size:13px;color:#6b7280;margin:0 0 12px">${escapeHtml(storeName)}</p>
+<h1 style="font-size:20px;margin:0 0 16px">${escapeHtml(subject)}</h1>
+${name ? `<p style="margin:0 0 12px">مرحباً ${escapeHtml(name)}،</p>` : ""}
+${paragraphs(body)}${cta}
+<p style="font-size:12px;color:#6b7280;margin-top:28px">وصلتك هذه الرسالة لأنك وافقت على استلام عروض ${escapeHtml(storeName)}. <a href="${escapeHtml(unsubscribeUrl)}">إلغاء الاشتراك</a></p>
+</div></body></html>`;
+  return {
+    to,
+    subject: `${subject} — ${storeName}`,
+    tag: "campaign",
+    html,
+    text: `${subject}\n\n${body}\n\n${buttonLink ?? ""}\n\nلإلغاء الاشتراك: ${unsubscribeUrl}`,
+  };
+}

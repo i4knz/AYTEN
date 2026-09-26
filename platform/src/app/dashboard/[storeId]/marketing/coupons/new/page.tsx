@@ -8,8 +8,9 @@ import { couponPickers } from "../data";
 
 export const metadata: Metadata = { title: "كوبون جديد" };
 
-export default async function NewCouponPage({ params }: PageProps<"/dashboard/[storeId]/marketing/coupons/new">) {
+export default async function NewCouponPage({ params, searchParams }: PageProps<"/dashboard/[storeId]/marketing/coupons/new">) {
   const { storeId } = await params;
+  const { code } = await searchParams;
   const { session, access } = await loadStore(storeId);
   if (!roleHas(access.role, "marketing.write")) notFound();
   const pickers = await couponPickers(session.user.id, storeId);
@@ -23,7 +24,7 @@ export default async function NewCouponPage({ params }: PageProps<"/dashboard/[s
         storeId={storeId}
         couponId={null}
         {...pickers}
-        initial={{ code: "", type: "percent", value: "", maxDiscount: "", minSubtotal: "", startsAt: "", endsAt: "", usageLimit: "", usageLimitPerCustomer: "", productIds: [], categoryIds: [], active: true }}
+        initial={{ code: typeof code === "string" ? code.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 30) : "", type: "percent", value: "", maxDiscount: "", minSubtotal: "", startsAt: "", endsAt: "", usageLimit: "", usageLimitPerCustomer: "", productIds: [], categoryIds: [], active: true }}
       />
     </div>
   );

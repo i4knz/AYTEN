@@ -42,7 +42,7 @@ function storeItems(counts: { newOrders: number }): Item[] {
     { label: "التسويق", path: "/marketing", icon: Megaphone, ready: true },
     { label: "الصفحات", path: "/pages", icon: FileText, ready: true },
     { label: "التقييمات", path: "/reviews", icon: Star, ready: true },
-    { label: "التقارير", path: "/reports", icon: ChartColumn, ready: false },
+    { label: "التقارير", path: "/reports", icon: ChartColumn, ready: true },
     { label: "العمليات", path: "/wallet", icon: ArrowLeftRight, ready: false },
     { label: "طلبات السحب", path: "/wallet/withdrawals", icon: Wallet, ready: false },
     { label: "الموظفين", path: "/team", icon: UserCog, ready: true },

@@ -13,6 +13,7 @@ import { getCart } from "@/server/commerce/cart";
 import { themeCssVars } from "@/themes/config";
 import { readCartToken } from "./cart-cookie";
 import { loadCategories, loadFooterPages, loadStorefront, loadStoreSettings, loadTheme, whatsappLink } from "./data";
+import { PageViewBeacon } from "./beacon";
 import { StoreTracking } from "./tracking";
 
 export async function generateMetadata({ params }: LayoutProps<"/s/[slug]">): Promise<Metadata> {
@@ -151,6 +152,7 @@ export default async function StorefrontLayout({ children, params }: LayoutProps
         </a>
       )}
       <StoreTracking tracking={settings.tracking} />
+      <PageViewBeacon />
     </div>
   );
 }

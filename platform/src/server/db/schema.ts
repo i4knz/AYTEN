@@ -262,6 +262,7 @@ export const customers = pgTable("customers", {
   firstOrderAt: tz("first_order_at"),
   lastOrderAt: tz("last_order_at"),
   anonymizedAt: tz("anonymized_at"),
+  unsubscribedAt: tz("unsubscribed_at"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });
@@ -317,6 +318,7 @@ export const carts = pgTable("carts", {
   contactEmail: citext("contact_email"),
   checkoutStartedAt: tz("checkout_started_at"),
   convertedOrderId: uuid("converted_order_id"),
+  remindedAt: tz("reminded_at"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });
@@ -550,6 +552,46 @@ export const reviews = pgTable("reviews", {
   status: text("status", { enum: ["pending", "approved", "rejected"] }).notNull().default("pending"),
   reply: text("reply"),
   repliedAt: tz("replied_at"),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+  updatedAt: tz("updated_at").notNull().default(sql`now()`),
+});
+
+// ---------------------------------------------------------------------------
+// 0005: marketing
+// ---------------------------------------------------------------------------
+
+export const PAGE_TYPES = ["home", "product", "category", "cart", "checkout", "order", "page", "other"] as const;
+export const TRAFFIC_SOURCES = ["direct", "google", "instagram", "tiktok", "snapchat", "whatsapp", "x", "facebook", "other"] as const;
+
+export const pageViews = pgTable("page_views", {
+  id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+  storeId: uuid("store_id").notNull(),
+  day: text("day").notNull(),
+  visitor: bytea("visitor").notNull(),
+  pageType: text("page_type", { enum: PAGE_TYPES }).notNull(),
+  productId: uuid("product_id"),
+  source: text("source", { enum: TRAFFIC_SOURCES }).notNull(),
+  campaign: text("campaign"),
+  device: text("device", { enum: ["mobile", "desktop"] }).notNull(),
+  createdAt: tz("created_at").notNull().default(sql`now()`),
+});
+
+export const CAMPAIGN_SEGMENTS = ["subscribers", "repeat", "inactive", "new"] as const;
+
+export const campaigns = pgTable("campaigns", {
+  id: uuid("id").primaryKey(),
+  storeId: uuid("store_id").notNull(),
+  name: text("name").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  buttonText: text("button_text"),
+  buttonLink: text("button_link"),
+  segment: text("segment", { enum: CAMPAIGN_SEGMENTS }).notNull().default("subscribers"),
+  status: text("status", { enum: ["draft", "sending", "sent", "failed"] }).notNull().default("draft"),
+  recipientsCount: integer("recipients_count").notNull().default(0),
+  sentCount: integer("sent_count").notNull().default(0),
+  sentAt: tz("sent_at"),
+  createdBy: uuid("created_by"),
   createdAt: tz("created_at").notNull().default(sql`now()`),
   updatedAt: tz("updated_at").notNull().default(sql`now()`),
 });

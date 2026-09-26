@@ -7,10 +7,10 @@ export const metadata: Metadata = { title: "التسويق" };
 
 const TOOLS: { title: string; body: string; path: string; icon: LucideIcon; ready: boolean; color: string }[] = [
   { title: "الكوبونات", body: "إنشاء وإدارة أكواد الخصم لعملائك", path: "/marketing/coupons", icon: Tag, ready: true, color: "bg-rose-100 text-rose-700" },
-  { title: "السلات المتروكة", body: "تتبع واسترجاع السلات التي لم تكتمل", path: "/marketing/abandoned", icon: ShoppingCart, ready: false, color: "bg-amber-100 text-amber-700" },
-  { title: "حملات التسويق", body: "أرسل رسائل لعملائك المشتركين في العروض", path: "/marketing/campaigns", icon: Send, ready: false, color: "bg-sky-100 text-sky-700" },
-  { title: "تحليلات الزيارات", body: "الزيارات ومصادرها والمنتجات الأكثر مشاهدة", path: "/marketing/analytics", icon: ChartLine, ready: false, color: "bg-violet-100 text-violet-700" },
-  { title: "المناسبات القادمة", body: "مواسم البيع في السعودية لتجهيز عروضك مبكراً", path: "/marketing/occasions", icon: CalendarDays, ready: false, color: "bg-emerald-100 text-emerald-700" },
+  { title: "السلات المتروكة", body: "تتبع واسترجاع السلات التي لم تكتمل", path: "/marketing/abandoned", icon: ShoppingCart, ready: true, color: "bg-amber-100 text-amber-700" },
+  { title: "حملات التسويق", body: "أرسل رسائل لعملائك المشتركين في العروض", path: "/marketing/campaigns", icon: Send, ready: true, color: "bg-sky-100 text-sky-700" },
+  { title: "تحليلات الزيارات", body: "الزيارات ومصادرها والمنتجات الأكثر مشاهدة", path: "/marketing/analytics", icon: ChartLine, ready: true, color: "bg-violet-100 text-violet-700" },
+  { title: "المناسبات القادمة", body: "مواسم البيع في السعودية لتجهيز عروضك مبكراً", path: "/marketing/occasions", icon: CalendarDays, ready: true, color: "bg-emerald-100 text-emerald-700" },
 ];
 
 export default async function MarketingPage({ params }: PageProps<"/dashboard/[storeId]/marketing">) {
